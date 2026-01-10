@@ -81,6 +81,16 @@ export type JournalSummary = {
     entryDates: string[];
 };
 
+export type Team = {
+    id: string;
+    name: string;
+    inviteCode: string;
+    ownerId: string;
+    memberIds: string[];
+    createdAt: string;
+    sharedMandala: MandalaChart;
+};
+
 export type AppData = {
     mandala: MandalaChart;
     tiger: TigerStats;

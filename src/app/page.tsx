@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { CheckCircle2, Circle, Sun } from 'lucide-react';
 
-import { AiConfig, AppData, Lesson, MandalaCell, MandalaChart, NotificationConfig, SubTask } from '@/lib/types';
+import { AiConfig, AppData, Lesson, MandalaCell, MandalaChart, NotificationConfig, SubTask, Team } from '@/lib/types';
 import { aiClient, DEFAULT_CONFIG as DEFAULT_AI_CLIENT_CONFIG } from '@/lib/ai_client';
 import { FirestoreService } from '@/lib/firestore_service';
 import { registerPushNotifications } from '@/lib/firebase';
@@ -67,6 +67,13 @@ export default function Home() {
   const [isGeneratingCheckin, setIsGeneratingCheckin] = useState(false);
   const [isGeneratingReplan, setIsGeneratingReplan] = useState(false);
   const [isGeneratingJournalSummary, setIsGeneratingJournalSummary] = useState<'weekly' | 'monthly' | null>(null);
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [activeTeamId, setActiveTeamId] = useState<string | null>(null);
+  const [teamName, setTeamName] = useState('');
+  const [inviteCode, setInviteCode] = useState('');
+  const [isCreatingTeam, setIsCreatingTeam] = useState(false);
+  const [isJoiningTeam, setIsJoiningTeam] = useState(false);
+  const [isSyncingTeamMandala, setIsSyncingTeamMandala] = useState(false);
 
   const [generatedMandala, setGeneratedMandala] = useState<{ centerGoal: string; surroundingGoals: string[] } | null>(null);
   const [isGeneratingMandala, setIsGeneratingMandala] = useState(false);
@@ -126,6 +133,23 @@ export default function Home() {
   const [selectedCell, setSelectedCell] = useState<{ sectionId: string, cell: MandalaCell } | null>(null);
   const [newSubTaskTitle, setNewSubTaskTitle] = useState('');
   const [copied, setCopied] = useState(false);
+  const refreshTeams = useCallback(async () => {
+    if (!user) return;
+    try {
+      const loadedTeams = await FirestoreService.loadTeamsForUser(user);
+      setTeams(loadedTeams);
+      setActiveTeamId((prev) => {
+        if (prev && loadedTeams.find(team => team.id === prev)) return prev;
+        return loadedTeams[0]?.id ?? null;
+      });
+    } catch (error) {
+      console.error('Failed to load teams:', error);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    refreshTeams();
+  }, [refreshTeams]);
 
   useEffect(() => {
     if (user) {
@@ -361,6 +385,7 @@ export default function Home() {
   const sortedJournalSummaries = [...journalSummaries].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   const latestWeeklySummary = sortedJournalSummaries.find(summary => summary.period === 'weekly');
   const latestMonthlySummary = sortedJournalSummaries.find(summary => summary.period === 'monthly');
+  const activeTeam = teams.find(team => team.id === activeTeamId) ?? null;
   const xpSeries7 = buildXpSeries(7);
   const weeklyXpTotal = xpSeries7.reduce((sum, entry) => sum + entry.xp, 0);
   const isStagnant = weeklyXpTotal <= 0;
@@ -724,6 +749,58 @@ export default function Home() {
     }
   };
 
+  const handleCreateTeam = async () => {
+    if (!user || !data) return;
+    const trimmed = teamName.trim();
+    if (!trimmed) return;
+    setIsCreatingTeam(true);
+    try {
+      const team = await FirestoreService.createTeam(user, trimmed, data.mandala);
+      setTeams((prev) => [team, ...prev]);
+      setActiveTeamId(team.id);
+      setTeamName('');
+    } catch (error) {
+      console.error('Failed to create team:', error);
+      alert('Failed to create team. Please try again.');
+    } finally {
+      setIsCreatingTeam(false);
+    }
+  };
+
+  const handleJoinTeam = async () => {
+    if (!user) return;
+    const code = inviteCode.trim().toUpperCase();
+    if (!code) return;
+    setIsJoiningTeam(true);
+    try {
+      const team = await FirestoreService.joinTeamByCode(user, code);
+      setTeams((prev) => (prev.find(item => item.id === team.id) ? prev : [team, ...prev]));
+      setActiveTeamId(team.id);
+      setInviteCode('');
+    } catch (error) {
+      console.error('Failed to join team:', error);
+      alert('Team not found. Check the invite code.');
+    } finally {
+      setIsJoiningTeam(false);
+    }
+  };
+
+  const handleSyncTeamMandala = async () => {
+    if (!data || !activeTeam) return;
+    setIsSyncingTeamMandala(true);
+    try {
+      await FirestoreService.updateTeamMandala(activeTeam.id, data.mandala);
+      setTeams((prev) => prev.map(team => (
+        team.id === activeTeam.id ? { ...team, sharedMandala: data.mandala } : team
+      )));
+    } catch (error) {
+      console.error('Failed to sync team mandala:', error);
+      alert('Failed to sync team mandala. Please try again.');
+    } finally {
+      setIsSyncingTeamMandala(false);
+    }
+  };
+
   const handleSaveSettings = async (exportPath: string, autoSync: boolean, aiConfig: AiConfig, notifications: NotificationConfig) => {
     if (!user) return;
     try {
@@ -930,11 +1007,12 @@ export default function Home() {
       </div>
 
       <Tabs defaultValue="mandala" className="w-full">
-        <TabsList className="grid w-full grid-cols-8 print:hidden glass-panel rounded-xl">
+        <TabsList className="grid w-full grid-cols-9 print:hidden glass-panel rounded-xl">
           <TabsTrigger value="dashboard" className="text-white data-[state=active]:bg-white/20">Dashboard</TabsTrigger>
           <TabsTrigger value="achievements" className="text-white data-[state=active]:bg-white/20">Achievements</TabsTrigger>
           <TabsTrigger value="journal" className="text-white data-[state=active]:bg-white/20">Journal</TabsTrigger>
           <TabsTrigger value="checkin" className="text-white data-[state=active]:bg-white/20">Check-in</TabsTrigger>
+          <TabsTrigger value="team" className="text-white data-[state=active]:bg-white/20">Team</TabsTrigger>
           <TabsTrigger value="mandala" className="text-white data-[state=active]:bg-white/20">Mandala View</TabsTrigger>
           <TabsTrigger value="kanban" className="text-white data-[state=active]:bg-white/20">Kanban View</TabsTrigger>
           <TabsTrigger value="lessons" className="text-white data-[state=active]:bg-white/20">Lessons</TabsTrigger>
@@ -1239,6 +1317,110 @@ export default function Home() {
                 ))
               ) : (
                 <div className="text-xs text-white/60">No check-ins yet.</div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="team" className="mt-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <Card className="glass-panel">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Team setup</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4 text-xs text-white/70">
+                <div className="space-y-2">
+                  <label className="text-xs text-white/70">Create team</label>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input
+                      value={teamName}
+                      onChange={(e) => setTeamName(e.target.value)}
+                      className="flex-1 rounded-md border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/90 placeholder:text-white/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/40"
+                      placeholder="Team name"
+                    />
+                    <Button onClick={handleCreateTeam} disabled={isCreatingTeam}>
+                      {isCreatingTeam ? 'Creating...' : 'Create'}
+                    </Button>
+                  </div>
+                </div>
+                <Separator className="bg-white/10" />
+                <div className="space-y-2">
+                  <label className="text-xs text-white/70">Join by code</label>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input
+                      value={inviteCode}
+                      onChange={(e) => setInviteCode(e.target.value)}
+                      className="flex-1 rounded-md border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/90 placeholder:text-white/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/40"
+                      placeholder="Invite code"
+                    />
+                    <Button onClick={handleJoinTeam} disabled={isJoiningTeam}>
+                      {isJoiningTeam ? 'Joining...' : 'Join'}
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="glass-panel">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">My teams</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {teams.length > 0 ? (
+                  teams.map((team) => (
+                    <div key={team.id} className="flex items-center justify-between rounded-md border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80">
+                      <div>
+                        <div className="text-sm text-white">{team.name}</div>
+                        <div className="text-[10px] text-white/60">Members: {team.memberIds?.length ?? 0}</div>
+                      </div>
+                      {activeTeamId === team.id ? (
+                        <Badge variant="secondary" className="text-[10px]">Active</Badge>
+                      ) : (
+                        <Button size="sm" variant="outline" onClick={() => setActiveTeamId(team.id)} className="text-xs">
+                          Set active
+                        </Button>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-xs text-white/60">No teams yet.</div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card className="glass-panel mt-4">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Team overview</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-xs text-white/80">
+              {activeTeam ? (
+                <>
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div>
+                      <div className="text-sm font-semibold text-white">{activeTeam.name}</div>
+                      <div className="text-[10px] text-white/60">Invite code: {activeTeam.inviteCode}</div>
+                    </div>
+                    <Button onClick={handleSyncTeamMandala} disabled={isSyncingTeamMandala}>
+                      {isSyncingTeamMandala ? 'Syncing...' : 'Sync my mandala'}
+                    </Button>
+                  </div>
+                  <div className="rounded-md border border-white/10 bg-white/5 p-3 space-y-2">
+                    <div className="text-[10px] text-white/60">Shared mandala</div>
+                    <div className="text-sm text-white">
+                      {activeTeam.sharedMandala?.centerSection?.centerCell?.title || 'Untitled'}
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-[10px] text-white/70">
+                      {activeTeam.sharedMandala?.surroundingSections?.slice(0, 8).map((section) => (
+                        <div key={section.id} className="rounded-md border border-white/10 bg-white/5 px-2 py-1">
+                          {section.centerCell?.title || 'Untitled'}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="text-xs text-white/60">No active team selected.</div>
               )}
             </CardContent>
           </Card>

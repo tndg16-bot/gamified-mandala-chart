@@ -1,6 +1,6 @@
 import { db } from "./firebase";
-import { doc, getDoc, setDoc, updateDoc, collection, getDocs, addDoc, arrayUnion } from "firebase/firestore";
-import { AiConfig, AppData, Lesson, LessonProgress, MandalaChart, NotificationConfig, ObsidianConfig } from "./types";
+import { doc, getDoc, setDoc, updateDoc, collection, getDocs, addDoc, arrayUnion, query, where, limit } from "firebase/firestore";
+import { AiConfig, AppData, Lesson, LessonProgress, MandalaChart, NotificationConfig, ObsidianConfig, Team } from "./types";
 import { User } from "firebase/auth";
 
 const DEFAULT_DATA: AppData = {
@@ -323,5 +323,49 @@ export const FirestoreService = {
 
         await setDoc(userDocRef, updatedData, { merge: true });
         return updatedData;
+    },
+
+    async createTeam(user: User, name: string, mandala: MandalaChart): Promise<Team> {
+        if (!user.uid) throw new Error("User ID missing");
+        const teamsRef = collection(db, "teams");
+        const inviteCode = Math.random().toString(36).slice(2, 8).toUpperCase();
+        const payload = {
+            name,
+            inviteCode,
+            ownerId: user.uid,
+            memberIds: [user.uid],
+            createdAt: new Date().toISOString(),
+            sharedMandala: mandala
+        };
+        const docRef = await addDoc(teamsRef, payload);
+        return { id: docRef.id, ...payload };
+    },
+
+    async joinTeamByCode(user: User, inviteCode: string): Promise<Team> {
+        if (!user.uid) throw new Error("User ID missing");
+        const teamsRef = collection(db, "teams");
+        const q = query(teamsRef, where("inviteCode", "==", inviteCode), limit(1));
+        const snapshot = await getDocs(q);
+        if (snapshot.empty) {
+            throw new Error("Team not found");
+        }
+        const docSnap = snapshot.docs[0];
+        await updateDoc(docSnap.ref, {
+            memberIds: arrayUnion(user.uid)
+        });
+        return { id: docSnap.id, ...(docSnap.data() as Omit<Team, "id">) };
+    },
+
+    async loadTeamsForUser(user: User): Promise<Team[]> {
+        if (!user.uid) throw new Error("User ID missing");
+        const teamsRef = collection(db, "teams");
+        const q = query(teamsRef, where("memberIds", "array-contains", user.uid));
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(docSnap => ({ id: docSnap.id, ...(docSnap.data() as Omit<Team, "id">) }));
+    },
+
+    async updateTeamMandala(teamId: string, mandala: MandalaChart): Promise<void> {
+        const teamRef = doc(db, "teams", teamId);
+        await updateDoc(teamRef, { sharedMandala: mandala });
     }
 };
