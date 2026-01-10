@@ -1,5 +1,5 @@
 import { db } from "./firebase";
-import { doc, getDoc, setDoc, updateDoc, collection, getDocs, addDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc, collection, getDocs, addDoc, arrayUnion } from "firebase/firestore";
 import { AiConfig, AppData, Lesson, LessonProgress, MandalaChart, NotificationConfig, ObsidianConfig } from "./types";
 import { User } from "firebase/auth";
 
@@ -55,7 +55,8 @@ const DEFAULT_DATA: AppData = {
         weeklyDay: 1,
         emailEnabled: false,
         pushEnabled: false
-    }
+    },
+    pushTokens: []
 };
 
 export const FirestoreService = {
@@ -74,7 +75,8 @@ export const FirestoreService = {
                 tiger: mergedTiger,
                 aiConfig: userData.aiConfig || DEFAULT_DATA.aiConfig,
                 xpHistory: userData.xpHistory || DEFAULT_DATA.xpHistory,
-                notifications: userData.notifications || DEFAULT_DATA.notifications
+                notifications: userData.notifications || DEFAULT_DATA.notifications,
+                pushTokens: userData.pushTokens || DEFAULT_DATA.pushTokens
             };
         } else {
             // Initialize new user data
@@ -284,6 +286,16 @@ export const FirestoreService = {
         const userDocRef = doc(db, "users", user.uid);
         await updateDoc(userDocRef, {
             notifications
+        });
+    },
+
+    async addPushToken(user: User, token: string): Promise<void> {
+        if (!user.uid) throw new Error("User ID missing");
+        if (!token) return;
+
+        const userDocRef = doc(db, "users", user.uid);
+        await updateDoc(userDocRef, {
+            pushTokens: arrayUnion(token)
         });
     },
 

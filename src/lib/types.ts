@@ -64,6 +64,7 @@ export type AppData = {
     aiConfig?: AiConfig; // AI設定を追加
     xpHistory?: { date: string; xp: number }[];
     notifications?: NotificationConfig;
+    pushTokens?: string[];
 };
 
 export type ChatMessage = {

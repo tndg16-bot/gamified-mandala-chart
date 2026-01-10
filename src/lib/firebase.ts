@@ -1,6 +1,7 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+import { getMessaging, getToken, isSupported } from "firebase/messaging";
 // import { getAnalytics } from "firebase/analytics"; // Analytics is optional and client-side only
 
 const firebaseConfig = {
@@ -17,5 +18,26 @@ const firebaseConfig = {
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+
+export async function registerPushNotifications(): Promise<string | null> {
+    if (typeof window === "undefined") return null;
+    const supported = await isSupported();
+    if (!supported) return null;
+    if (!("serviceWorker" in navigator)) return null;
+
+    const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
+    if (!vapidKey) {
+        throw new Error("Missing NEXT_PUBLIC_FIREBASE_VAPID_KEY");
+    }
+
+    const registration = await navigator.serviceWorker.register("/firebase-messaging-sw.js");
+    const messaging = getMessaging(app);
+    const token = await getToken(messaging, {
+        vapidKey,
+        serviceWorkerRegistration: registration
+    });
+
+    return token || null;
+}
 
 // Analytics can be initialized purely on client side if needed, skipping for MVP logic

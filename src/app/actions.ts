@@ -54,7 +54,8 @@ const INITIAL_DATA: AppData = {
         weeklyDay: 1,
         emailEnabled: false,
         pushEnabled: false
-    }
+    },
+    pushTokens: []
 };
 
 export async function loadData(): Promise<AppData> {

@@ -7,6 +7,7 @@ import { CheckCircle2, Circle, Sun } from 'lucide-react';
 import { AiConfig, AppData, Lesson, MandalaCell, MandalaChart, NotificationConfig, SubTask } from '@/lib/types';
 import { aiClient, DEFAULT_CONFIG as DEFAULT_AI_CLIENT_CONFIG } from '@/lib/ai_client';
 import { FirestoreService } from '@/lib/firestore_service';
+import { registerPushNotifications } from '@/lib/firebase';
 import { exportMandalaToMarkdown, exportTasksToMarkdown } from '@/app/actions';
 
 import { useAuth } from '@/components/AuthContext';
@@ -422,7 +423,21 @@ export default function Home() {
     try {
       await FirestoreService.updateObsidianConfig(user, exportPath, autoSync);
       await FirestoreService.updateAiConfig(user, aiConfig);
-      await FirestoreService.updateNotificationConfig(user, notifications); // AI設定をFirestoreに保存
+      await FirestoreService.updateNotificationConfig(user, notifications);
+
+      if (notifications.pushEnabled) {
+        try {
+          const token = await registerPushNotifications();
+          if (token) {
+            await FirestoreService.addPushToken(user, token);
+          } else {
+            alert('Push token was not generated. Check browser permissions.');
+          }
+        } catch (error) {
+          console.error('Failed to register push notifications:', error);
+          alert('Failed to enable push notifications. Check your VAPID key and service worker config.');
+        }
+      }設定をFirestoreに保存
 
       // localStorageにもAI設定を保存
       if (typeof window !== 'undefined') {
