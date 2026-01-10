@@ -1,17 +1,17 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { loadData, importMandalaFromMarkdown } from './actions'; // Keep import for fallback/utils
+import { useEffect, useState, useCallback } from 'react';
+import { exportMandalaToMarkdown, exportTasksToMarkdown } from './actions';
 import { AppData, MandalaCell, SubTask } from '@/lib/types';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogDescription } from "@/components/ui/dialog"
 import { motion, AnimatePresence } from "framer-motion";
-import { Trees, Sun, CloudRain, Home as HomeIcon, CheckCircle2, Circle } from 'lucide-react';
+import { Sun, CheckCircle2, Circle } from 'lucide-react';
 
 import { aiClient } from '@/lib/ai_client';
 import { useAuth } from "@/components/AuthContext";
@@ -21,6 +21,7 @@ import { ChatUI } from "@/components/ChatUI";
 import { LessonList } from "@/components/LessonList";
 import { LessonDetail } from "@/components/LessonDetail";
 import { LessonImportDialog } from "@/components/LessonImportDialog";
+import { SettingsDialog } from "@/components/SettingsDialog";
 import { Lesson } from "@/lib/types";
 
 export default function Home() {
@@ -31,6 +32,8 @@ export default function Home() {
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+  const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   // Load AI config from localStorage
   useEffect(() => {
@@ -54,9 +57,6 @@ export default function Home() {
   const [zoomSection, setZoomSection] = useState<string | null>(null);
   const [selectedCell, setSelectedCell] = useState<{ sectionId: string, cell: MandalaCell } | null>(null);
   const [newSubTaskTitle, setNewSubTaskTitle] = useState('');
-
-  // Kanban Filter State
-  const [filterTime, setFilterTime] = useState<'all' | 'today' | 'week'>('all');
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -76,6 +76,23 @@ export default function Home() {
     }
   }, [user]);
 
+  const handleAutoSync = useCallback(async () => {
+    if (!data || !user || !data.obsidian?.autoSync) return;
+    try {
+      await exportMandalaToMarkdown(data);
+      await exportTasksToMarkdown(data);
+    } catch (error) {
+      console.error('Auto-sync failed:', error);
+    }
+  }, [data, user]);
+
+  useEffect(() => {
+    if (data?.obsidian?.autoSync) {
+      const timer = setTimeout(() => handleAutoSync(), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [data, handleAutoSync]);
+
   if (authLoading) return <div className="flex h-screen items-center justify-center">Authenticating...</div>;
 
   if (!user) {
@@ -89,19 +106,6 @@ export default function Home() {
       </div>
     );
   }
-
-  const handleImport = async () => {
-    setLoading(true);
-    try {
-      const newData = await importMandalaFromMarkdown();
-      setData(newData);
-    } catch (e) {
-      console.error(e);
-      alert("Import failed. See console.");
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const openValidCellModal = (sectionId: string, cell: MandalaCell) => {
     setSelectedCell({ sectionId, cell });
@@ -214,6 +218,49 @@ export default function Home() {
     setLessons(updatedLessons);
   };
 
+  const handleExportMandala = async () => {
+    if (!data || !user) return;
+    setExporting(true);
+    try {
+      const freshData = await FirestoreService.loadUserData(user);
+      const filePath = await exportMandalaToMarkdown(freshData);
+      alert(`Mandala exported to: ${filePath}`);
+    } catch (error) {
+      console.error('Export failed:', error);
+      alert('Failed to export Mandala. Please try again.');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleExportTasks = async () => {
+    if (!data || !user) return;
+    setExporting(true);
+    try {
+      const freshData = await FirestoreService.loadUserData(user);
+      const filePath = await exportTasksToMarkdown(freshData);
+      alert(`Tasks exported to: ${filePath}`);
+    } catch (error) {
+      console.error('Export failed:', error);
+      alert('Failed to export tasks. Please try again.');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleSaveSettings = async (exportPath: string, autoSync: boolean) => {
+    if (!user) return;
+    try {
+      await FirestoreService.updateObsidianConfig(user, exportPath, autoSync);
+      const newData = await FirestoreService.loadUserData(user);
+      setData(newData);
+      alert('Settings saved successfully!');
+    } catch (error) {
+      console.error('Failed to save settings:', error);
+      throw error;
+    }
+  };
+
   if (loading || !data) return <div className="flex h-screen items-center justify-center">Loading Tiger...</div>;
 
   return (
@@ -242,6 +289,7 @@ export default function Home() {
               {copied ? "✅ Copied!" : "📤 MD"}
             </Button>
             <Button variant="outline" className="flex-1 md:flex-none" onClick={handlePrint}>🖨️ PDF</Button>
+            <Button variant="outline" className="flex-1 md:flex-none" onClick={() => setIsSettingsDialogOpen(true)}>⚙️</Button>
           </div>
           <div className="w-full md:w-64">
             <div className="flex justify-between text-xs mb-1">
@@ -249,6 +297,41 @@ export default function Home() {
               <span>Next: {(Math.floor(data.tiger.xp / 100) + 1) * 100}</span>
             </div>
             <Progress value={data.tiger.xp % 100} className="h-2" />
+            {data.obsidian?.autoSync && (
+              <div className="text-[10px] text-orange-300 mt-1">Auto-sync: ON</div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Obsidian Export Bar */}
+      <div className="glass-panel rounded-xl p-3 mb-4 print:hidden">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-white">Obsidian Integration</span>
+            {data.obsidian?.autoSync && (
+              <Badge variant="secondary" className="text-[10px]">Auto-sync: ON</Badge>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportMandala}
+              disabled={exporting}
+              className="text-xs"
+            >
+              📊 Export Mandala
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportTasks}
+              disabled={exporting}
+              className="text-xs"
+            >
+              ✅ Export Tasks
+            </Button>
           </div>
         </div>
       </div>
@@ -515,6 +598,15 @@ export default function Home() {
         open={isImportDialogOpen}
         onOpenChange={setIsImportDialogOpen}
         onImport={handleImportLessons}
+      />
+
+      {/* Settings Dialog */}
+      <SettingsDialog
+        open={isSettingsDialogOpen}
+        onOpenChange={setIsSettingsDialogOpen}
+        obsidianPath={data?.obsidian?.exportPath || '../../Gamified-Mandala-Data'}
+        autoSync={data?.obsidian?.autoSync || false}
+        onSave={handleSaveSettings}
       />
 
     </div>

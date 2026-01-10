@@ -39,10 +39,16 @@ export type TigerStats = {
     pokedex: string[]; // List of IDs of past cleared tigers
 };
 
+export type ObsidianConfig = {
+    exportPath: string;
+    autoSync: boolean;
+};
+
 export type AppData = {
     mandala: MandalaChart;
     tiger: TigerStats;
     lessonProgress?: LessonProgress[];
+    obsidian?: ObsidianConfig;
 };
 
 export type ChatMessage = {

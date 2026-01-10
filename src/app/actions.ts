@@ -2,8 +2,8 @@
 
 import fs from 'fs/promises';
 import path from 'path';
-import { AppData, TigerStats } from '@/lib/types';
-import { db } from '@/lib/firebase';
+import { AppData, TigerStats, SubTask } from '@/lib/types';
+
 
 // Define the path relative to the app execution.
 // Since the app is in apps/gamified-mandala, and we want data in the Vault root:
@@ -40,6 +40,10 @@ const INITIAL_DATA: AppData = {
         lastLogin: new Date().toISOString(),
         evolutionStage: 'Egg',
         pokedex: []
+    },
+    obsidian: {
+        exportPath: '../../Gamified-Mandala-Data',
+        autoSync: false
     }
 };
 
@@ -182,4 +186,121 @@ export async function toggleSubTask(sectionId: string, cellId: string, subTaskId
 
     await saveData(data);
     return data;
+}
+
+export async function exportMandalaToMarkdown(data: AppData): Promise<string> {
+    const obsidianDir = data.obsidian?.exportPath || '../../Gamified-Mandala-Data';
+    const exportDir = path.resolve(process.cwd(), obsidianDir);
+
+    try {
+        await fs.mkdir(exportDir, { recursive: true });
+    } catch {
+    }
+
+    const timestamp = new Date().toISOString().split('T')[0];
+    const filename = `mandala-${timestamp}.md`;
+    const filePath = path.join(exportDir, filename);
+
+    let md = `---
+title: Mandala Chart
+date: ${new Date().toISOString()}
+tiger_level: ${data.tiger.level}
+tags: [mandala, goals]
+---
+
+# ${data.mandala.centerSection.centerCell.title}
+
+**Tiger Level:** ${data.tiger.level} | **XP:** ${data.tiger.xp}
+
+## 🎯 Core Vision
+
+${data.mandala.centerSection.centerCell.title}
+
+`;
+
+    data.mandala.surroundingSections.forEach(sec => {
+        md += `## ${sec.centerCell.title}\n\n`;
+        sec.surroundingCells.forEach(cell => {
+            const status = cell.subTasks && cell.subTasks.length > 0 && cell.subTasks.every(t => t.completed) ? '[x]' : '[ ]';
+            md += `- ${status} ${cell.title}\n`;
+            if (cell.subTasks && cell.subTasks.length > 0) {
+                cell.subTasks.forEach(st => {
+                    const stStatus = st.completed ? '[x]' : '[ ]';
+                    const diffBadge = st.difficulty ? ` [${st.difficulty}]` : '';
+                    md += `  - ${stStatus} ${st.title}${diffBadge}\n`;
+                });
+            }
+        });
+        md += '\n';
+    });
+
+    await fs.writeFile(filePath, md, 'utf-8');
+    return filePath;
+}
+
+export async function exportTasksToMarkdown(data: AppData): Promise<string> {
+    const obsidianDir = data.obsidian?.exportPath || '../../Gamified-Mandala-Data';
+    const exportDir = path.resolve(process.cwd(), obsidianDir);
+
+    try {
+        await fs.mkdir(exportDir, { recursive: true });
+    } catch {
+    }
+
+    const timestamp = new Date().toISOString().split('T')[0];
+    const filename = `tasks-${timestamp}.md`;
+    const filePath = path.join(exportDir, filename);
+
+    const allTasks: { subTask: SubTask; sectionTitle: string; cellTitle: string }[] = [];
+
+    data.mandala.surroundingSections.forEach(sec => {
+        sec.surroundingCells.forEach(cell => {
+            if (cell.subTasks && cell.subTasks.length > 0) {
+                cell.subTasks.forEach(st => {
+                    allTasks.push({ subTask: st, sectionTitle: sec.centerCell.title, cellTitle: cell.title });
+                });
+            }
+        });
+    });
+
+    const todoTasks = allTasks.filter(t => !t.subTask.completed);
+    const doneTasks = allTasks.filter(t => t.subTask.completed);
+
+    let md = `---
+title: Task List
+date: ${new Date().toISOString()}
+tags: [tasks, todo]
+---
+
+# Task List
+
+**Tiger Level:** ${data.tiger.level} | **Total Tasks:** ${allTasks.length}
+
+## 📋 To Do (${todoTasks.length})
+
+`;
+
+    todoTasks.forEach(t => {
+        const diffBadge = t.subTask.difficulty ? ` [${t.subTask.difficulty}]` : '';
+        md += `- [[${t.cellTitle}]]: ${t.subTask.title}${diffBadge}\n`;
+    });
+
+    md += `\n## ✅ Done (${doneTasks.length})\n\n`;
+
+    doneTasks.forEach(t => {
+        const diffBadge = t.subTask.difficulty ? ` [${t.subTask.difficulty}]` : '';
+        md += `- [[${t.cellTitle}]]: ${t.subTask.title}${diffBadge}\n`;
+    });
+
+    await fs.writeFile(filePath, md, 'utf-8');
+    return filePath;
+}
+
+export async function updateObsidianConfig(exportPath: string, autoSync: boolean): Promise<void> {
+    const data = await loadData();
+    data.obsidian = {
+        exportPath,
+        autoSync
+    };
+    await saveData(data);
 }

@@ -1,6 +1,6 @@
 import { db } from "./firebase";
 import { doc, getDoc, setDoc, updateDoc, collection, getDocs, addDoc } from "firebase/firestore";
-import { AppData, MandalaCell, Lesson, LessonProgress } from "./types";
+import { AppData, MandalaCell, Lesson, LessonProgress, ObsidianConfig } from "./types";
 import { User } from "firebase/auth";
 
 const DEFAULT_DATA: AppData = {
@@ -37,7 +37,11 @@ const DEFAULT_DATA: AppData = {
         evolutionStage: "Egg",
         pokedex: []
     },
-    lessonProgress: []
+    lessonProgress: [],
+    obsidian: {
+        exportPath: "../../Gamified-Mandala-Data",
+        autoSync: false
+    }
 };
 
 export const FirestoreService = {
@@ -180,9 +184,20 @@ export const FirestoreService = {
 
     async importLessons(lessons: Lesson[]): Promise<void> {
         const lessonsRef = collection(db, "lessons");
-        
+
         for (const lesson of lessons) {
             await addDoc(lessonsRef, lesson);
         }
+    },
+
+    async updateObsidianConfig(user: User, exportPath: string, autoSync: boolean): Promise<void> {
+        if (!user.uid) throw new Error("User ID missing");
+
+        const userDocRef = doc(db, "users", user.uid);
+        const obsidianConfig: ObsidianConfig = { exportPath, autoSync };
+
+        await updateDoc(userDocRef, {
+            obsidian: obsidianConfig
+        });
     }
 };
