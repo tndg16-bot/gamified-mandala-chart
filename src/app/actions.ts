@@ -2,7 +2,7 @@
 
 import fs from 'fs/promises';
 import path from 'path';
-import { AppData, TigerStats, SubTask } from '@/lib/types';
+import { AppData, MandalaChart, TigerStats, SubTask } from '@/lib/types';
 
 
 // Define the path relative to the app execution.
@@ -305,6 +305,77 @@ tags: [tasks, todo]
 
     await fs.writeFile(filePath, md, 'utf-8');
     return filePath;
+}
+
+async function getLatestMarkdownFile(exportDir: string, prefix: string): Promise<string | null> {
+    try {
+        const files = await fs.readdir(exportDir);
+        const matches = files.filter((name) => name.startsWith(prefix) && name.endsWith('.md'));
+        if (matches.length === 0) return null;
+        matches.sort();
+        return path.join(exportDir, matches[matches.length - 1]);
+    } catch {
+        return null;
+    }
+}
+
+function parseMandalaMarkdown(content: string, baseMandala: MandalaChart): MandalaChart {
+    const updated = JSON.parse(JSON.stringify(baseMandala)) as MandalaChart;
+    const lines = content.split(/\r?\n/);
+    const centerLine = lines.find((line) => line.startsWith('# ') && !line.startsWith('## '));
+    if (centerLine) {
+        updated.centerSection.centerCell.title = centerLine.replace(/^#\s+/, '').trim();
+    }
+
+    const sectionTitles: string[] = [];
+    const sectionCells: string[][] = [];
+    let currentSectionIndex: number | null = null;
+
+    lines.forEach((line) => {
+        if (line.startsWith('## ')) {
+            const title = line.replace(/^##\s+/, '').trim();
+            if (title.toLowerCase().includes('core vision')) {
+                currentSectionIndex = null;
+                return;
+            }
+            currentSectionIndex = sectionTitles.length;
+            sectionTitles.push(title);
+            sectionCells.push([]);
+            return;
+        }
+
+        if (currentSectionIndex === null) return;
+        const match = line.match(/^- \[[ xX]\]\s+(.+)$/);
+        if (match) {
+            sectionCells[currentSectionIndex].push(match[1].trim());
+        }
+    });
+
+    sectionTitles.slice(0, 8).forEach((title, index) => {
+        updated.centerSection.surroundingCells[index].title = title;
+        updated.surroundingSections[index].centerCell.title = title;
+    });
+
+    sectionCells.slice(0, 8).forEach((cells, sectionIndex) => {
+        cells.slice(0, 8).forEach((cellTitle, cellIndex) => {
+            updated.surroundingSections[sectionIndex].surroundingCells[cellIndex].title = cellTitle;
+        });
+    });
+
+    return updated;
+}
+
+export async function importMandalaFromObsidian(
+    baseMandala: MandalaChart,
+    obsidianPath?: string
+): Promise<MandalaChart | null> {
+    const obsidianDir = obsidianPath || '../../Gamified-Mandala-Data';
+    const exportDir = path.resolve(process.cwd(), obsidianDir);
+    const filePath = await getLatestMarkdownFile(exportDir, 'mandala-');
+    if (!filePath) return null;
+
+    const content = await fs.readFile(filePath, 'utf-8');
+    return parseMandalaMarkdown(content, baseMandala);
 }
 
 export async function updateObsidianConfig(exportPath: string, autoSync: boolean): Promise<void> {

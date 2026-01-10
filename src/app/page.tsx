@@ -8,7 +8,7 @@ import { AiConfig, AppData, Lesson, MandalaCell, MandalaChart, NotificationConfi
 import { aiClient, DEFAULT_CONFIG as DEFAULT_AI_CLIENT_CONFIG } from '@/lib/ai_client';
 import { FirestoreService } from '@/lib/firestore_service';
 import { registerPushNotifications } from '@/lib/firebase';
-import { exportMandalaToMarkdown, exportTasksToMarkdown } from '@/app/actions';
+import { exportMandalaToMarkdown, exportTasksToMarkdown, importMandalaFromObsidian } from '@/app/actions';
 
 import { useAuth } from '@/components/AuthContext';
 import { LessonImportDialog } from '@/components/LessonImportDialog';
@@ -55,6 +55,7 @@ export default function Home() {
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [importingMandala, setImportingMandala] = useState(false);
   const [xpRange, setXpRange] = useState<'7' | '30'>('7');
   const [recentBadge, setRecentBadge] = useState<{ id: string; title: string; description: string } | null>(null);
   const [journalDraft, setJournalDraft] = useState({
@@ -702,6 +703,27 @@ export default function Home() {
     }
   };
 
+  const handleImportMandala = async () => {
+    if (!data || !user) return;
+    setImportingMandala(true);
+    try {
+      const updatedMandala = await importMandalaFromObsidian(data.mandala, data.obsidian?.exportPath);
+      if (!updatedMandala) {
+        alert('No mandala markdown found in the export path.');
+        return;
+      }
+      const newData = { ...data, mandala: updatedMandala };
+      await FirestoreService.saveUserData(user, newData);
+      setData(newData);
+      alert('Mandala imported from Obsidian.');
+    } catch (error) {
+      console.error('Import failed:', error);
+      alert('Failed to import Mandala. Please try again.');
+    } finally {
+      setImportingMandala(false);
+    }
+  };
+
   const handleSaveSettings = async (exportPath: string, autoSync: boolean, aiConfig: AiConfig, notifications: NotificationConfig) => {
     if (!user) return;
     try {
@@ -884,6 +906,15 @@ export default function Home() {
               className="text-xs"
             >
               📊 Export Mandala
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleImportMandala}
+              disabled={importingMandala}
+              className="text-xs"
+            >
+              📥 Import Mandala
             </Button>
             <Button
               variant="outline"
