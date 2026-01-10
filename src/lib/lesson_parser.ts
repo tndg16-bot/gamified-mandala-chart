@@ -54,23 +54,33 @@ function parseSingleLesson(block: string): ParsedLesson | null {
     }
     
     if (!title) return null;
-    
-    if (separatorIndex === -1) separatorIndex = titleLineIndex + 1;
-    
-    const descriptionLines: string[] = [];
-    for (let i = titleLineIndex + 1; i < separatorIndex; i++) {
-        const line = lines[i];
-        if (line && !line.startsWith('<!--') && !line.startsWith('#')) {
+
+    let currentLineIndex = titleLineIndex + 1;
+
+    // Extract metadata and description
+    while (currentLineIndex < lines.length && lines[currentLineIndex] !== '---') {
+        const line = lines[currentLineIndex];
+        if (line.startsWith('<!-- level:')) {
+            const match = line.match(/level:\s*(\d+)/);
+            if (match) requiredLevel = parseInt(match[1], 10);
+        } else if (line.startsWith('<!-- xp:')) {
+            const match = line.match(/xp:\s*(\d+)/);
+            if (match) xp = parseInt(match[1], 10);
+        } else if (line.trim() !== '') {
             descriptionLines.push(line);
         }
+        currentLineIndex++;
     }
     description = descriptionLines.join(' ').trim();
     
-    const contentLines: string[] = [];
-    for (let i = separatorIndex + 1; i < lines.length; i++) {
-        contentLines.push(lines[i]);
+    separatorIndex = lines.indexOf('---', titleLineIndex + 1); // Ensure it's after title
+    if (separatorIndex === -1) {
+        // If no separator found, consider everything after metadata/description as content
+        separatorIndex = currentLineIndex - 1; // Mark the end of description processing
+        content = lines.slice(separatorIndex + 1).join('\n').trim();
+    } else {
+        content = lines.slice(separatorIndex + 1).join('\n').trim();
     }
-    content = contentLines.join('\n').trim();
     
     return { title, description, content, requiredLevel, xp };
 }

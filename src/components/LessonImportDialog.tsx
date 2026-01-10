@@ -29,6 +29,16 @@ export function LessonImportDialog({ open, onOpenChange, onImport }: LessonImpor
                 setParsedLessons([]);
                 return;
             }
+
+            // 各レッスンが有効かどうかのバリデーション
+            const invalidLessons = lessons.filter(lesson => !lesson.title || !lesson.description || !lesson.content);
+            if (invalidLessons.length > 0) {
+                setErrorMessage(`Some lessons are missing required fields (Title, Description, or Content). Found ${invalidLessons.length} invalid lesson(s).`);
+                setIsValid(false);
+                setParsedLessons([]);
+                return;
+            }
+
             setParsedLessons(lessons);
             setIsValid(true);
             setErrorMessage("");
@@ -87,7 +97,7 @@ export function LessonImportDialog({ open, onOpenChange, onImport }: LessonImpor
                     </DialogTitle>
                     <DialogDescription>
                         Paste your lesson content in Markdown format or upload a .md file.
-                        Format: <code className="bg-muted px-1 py-0.5 rounded text-xs"># Title | Description | --- | Content | ===</code>
+                        Refer to <code className="bg-muted px-1 py-0.5 rounded text-xs">docs/lesson_import_format.md</code> for detailed format.
                     </DialogDescription>
                 </DialogHeader>
 
@@ -129,7 +139,7 @@ export function LessonImportDialog({ open, onOpenChange, onImport }: LessonImpor
                     </div>
 
                     <Textarea
-                        placeholder="# Lesson Title&#10;&#10;&lt;!-- level: 1 --&gt;&#10;&lt;!-- xp: 50 --&gt;&#10;&#10;Lesson description here.&#10;&#10;---&#10;&#10;Lesson content here...&#10;&#10;==="
+                        placeholder={`# Lesson Title\n\n<!-- level: 1 -->\n<!-- xp: 50 -->\n\nLesson description here.\n\n---\n\nLesson content here...\n\n===`}
                         value={markdown}
                         onChange={(e) => {
                             setMarkdown(e.target.value);
