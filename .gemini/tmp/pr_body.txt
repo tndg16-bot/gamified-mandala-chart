@@ -1,0 +1,11 @@
+Closes #1
+
+This pull request addresses Issue #1, "Implement Authentication".
+
+Upon investigation, it was found that the authentication system using Firebase/OAuth was already fully implemented and integrated into the application:
+- Firebase initialization and `auth` service setup in `src/lib/firebase.ts`.
+- Authentication logic with Google OAuth and state management in `src/components/AuthContext.tsx`.
+- Login/Logout UI in `src/app/page.tsx`.
+- `AuthProvider` wrapping the application in `src/app/layout.tsx`.
+
+The existing implementation was verified to be functional. This PR serves to close Issue #1 and confirm the completion of this feature.

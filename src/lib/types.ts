@@ -49,6 +49,7 @@ export type AppData = {
     tiger: TigerStats;
     lessonProgress?: LessonProgress[];
     obsidian?: ObsidianConfig;
+    aiConfig?: AiConfig; // AI設定を追加
 };
 
 export type ChatMessage = {
@@ -73,4 +74,13 @@ export type LessonProgress = {
     completed: boolean;
     startedAt?: string;
     completedAt?: string;
+};
+
+export type AiProvider = 'ollama' | 'gemini' | 'custom';
+
+export interface AiConfig {
+    provider: AiProvider;
+    baseUrl: string; // e.g. "http://localhost:11434"
+    model: string;   // e.g. "llama3"
+    apiKey?: string; // For Gemini/OpenAI
 };

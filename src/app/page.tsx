@@ -1,51 +1,61 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
-import { exportMandalaToMarkdown, exportTasksToMarkdown } from './actions';
-import { AppData, MandalaCell, SubTask } from '@/lib/types';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Progress } from "@/components/ui/progress"
-import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
-import { Dialog, DialogContent, DialogHeader, DialogDescription } from "@/components/ui/dialog"
-import { motion, AnimatePresence } from "framer-motion";
-import { Sun, CheckCircle2, Circle } from 'lucide-react';
-
+import { AiConfig, AppData, MandalaCell, SubTask } from '@/lib/types';
 import { aiClient } from '@/lib/ai_client';
-import { useAuth } from "@/components/AuthContext";
-import { TigerAvatar } from "@/components/TigerAvatar";
-import { FirestoreService } from "@/lib/firestore_service";
-import { ChatUI } from "@/components/ChatUI";
-import { LessonList } from "@/components/LessonList";
-import { LessonDetail } from "@/components/LessonDetail";
-import { LessonImportDialog } from "@/components/LessonImportDialog";
-import { SettingsDialog } from "@/components/SettingsDialog";
-import { Lesson } from "@/lib/types";
+import { DEFAULT_CONFIG as DEFAULT_AI_CLIENT_CONFIG } from '@/lib/ai_client'; // ai_clientからデフォルト設定をインポート
 
 export default function Home() {
   const { user, loading: authLoading, signInWithGoogle, logout } = useAuth();
   const [data, setData] = useState<AppData | null>(null);
   const [loading, setLoading] = useState(true);
   const [isBrainstorming, setIsBrainstorming] = useState(false);
-  const [lessons, setLessons] = useState<Lesson[]>([]);
+  const [lessons, setLessons, ] = useState<Lesson[]>([]);
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
 
-  // Load AI config from localStorage
+  // Initialize AI config from localStorage on component mount
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const savedUrl = localStorage.getItem('ai_base_url');
-      if (savedUrl) {
-        aiClient.setBaseUrl(savedUrl);
-        console.log("Restored AI URL:", savedUrl);
+      const savedAiConfig = localStorage.getItem('ai_config');
+      if (savedAiConfig) {
+        const parsedConfig: AiConfig = JSON.parse(savedAiConfig);
+        aiClient.updateConfig(parsedConfig);
+        console.log("Restored AI config from localStorage:", parsedConfig);
+      } else {
+        // If no config in localStorage, use default client config
+        aiClient.updateConfig(DEFAULT_AI_CLIENT_CONFIG);
       }
     }
     FirestoreService.getAllLessons().then(setLessons).catch(console.error);
   }, []);
+
+  // Effect to load user data (including AI config from Firestore)
+  useEffect(() => {
+    if (user) {
+      setLoading(true);
+      FirestoreService.loadUserData(user)
+        .then(d => {
+          setData(d);
+          // Apply AI config from Firestore if available
+          if (d.aiConfig) {
+            aiClient.updateConfig(d.aiConfig);
+            console.log("Applied AI config from Firestore:", d.aiConfig);
+          } else {
+            // Firestore data might not have aiConfig yet, use client default
+            aiClient.updateConfig(DEFAULT_AI_CLIENT_CONFIG);
+          }
+        })
+        .catch(e => {
+          console.error("Failed to load user data:", e);
+          alert(`Failed to load data: ${e.message}`);
+        })
+        .finally(() => {
+          setLoading(false);
+        });
+    }
+  }, [user]);
 
   // Sound Placeholder
   const playSuccess = () => {
@@ -248,11 +258,21 @@ export default function Home() {
     }
   };
 
-  const handleSaveSettings = async (exportPath: string, autoSync: boolean) => {
+  const handleSaveSettings = async (exportPath: string, autoSync: boolean, aiConfig: AiConfig) => {
     if (!user) return;
     try {
       await FirestoreService.updateObsidianConfig(user, exportPath, autoSync);
-      const newData = await FirestoreService.loadUserData(user);
+      await FirestoreService.updateAiConfig(user, aiConfig); // AI設定をFirestoreに保存
+
+      // localStorageにもAI設定を保存
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('ai_config', JSON.stringify(aiConfig));
+      }
+
+      // aiClientを更新
+      aiClient.updateConfig(aiConfig);
+
+      const newData = await FirestoreService.loadUserData(user); // 最新データを再ロード
       setData(newData);
       alert('Settings saved successfully!');
     } catch (error) {
@@ -606,6 +626,7 @@ export default function Home() {
         onOpenChange={setIsSettingsDialogOpen}
         obsidianPath={data?.obsidian?.exportPath || '../../Gamified-Mandala-Data'}
         autoSync={data?.obsidian?.autoSync || false}
+        aiConfig={data?.aiConfig || DEFAULT_AI_CLIENT_CONFIG} // aiConfigを追加
         onSave={handleSaveSettings}
       />
 

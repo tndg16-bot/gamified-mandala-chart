@@ -29,18 +29,14 @@ const DEFAULT_DATA: AppData = {
             }))
         }))
     },
-    tiger: {
-        level: 1,
-        xp: 0,
-        mood: "Happy",
-        lastLogin: new Date().toISOString(),
-        evolutionStage: "Egg",
-        pokedex: []
-    },
-    lessonProgress: [],
     obsidian: {
         exportPath: "../../Gamified-Mandala-Data",
         autoSync: false
+    },
+    aiConfig: { // DEFAULT_DATAにaiConfigを追加
+        provider: 'ollama',
+        baseUrl: 'http://localhost:11434',
+        model: 'gemma3:1b',
     }
 };
 
@@ -51,7 +47,9 @@ export const FirestoreService = {
         const snapshot = await getDoc(userDocRef);
 
         if (snapshot.exists()) {
-            return snapshot.data() as AppData;
+            const userData = snapshot.data() as AppData;
+            // 既存のデータにaiConfigがない場合を考慮してDEFAULT_DATAとマージ
+            return { ...DEFAULT_DATA, ...userData, aiConfig: userData.aiConfig || DEFAULT_DATA.aiConfig };
         } else {
             // Initialize new user data
             await setDoc(userDocRef, DEFAULT_DATA);
@@ -198,6 +196,15 @@ export const FirestoreService = {
 
         await updateDoc(userDocRef, {
             obsidian: obsidianConfig
+        });
+    },
+
+    async updateAiConfig(user: User, aiConfig: AiConfig): Promise<void> {
+        if (!user.uid) throw new Error("User ID missing");
+
+        const userDocRef = doc(db, "users", user.uid);
+        await updateDoc(userDocRef, {
+            aiConfig: aiConfig
         });
     }
 };

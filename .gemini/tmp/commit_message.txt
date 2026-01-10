@@ -1,0 +1,23 @@
+feat: Add AI settings integration and testing setup
+
+This commit introduces the following features and improvements:
+
+- **AI Settings Integration:**
+  - Implemented Gemini AI provider support in src/lib/ai_client.ts.
+  - Added aiConfig to AppData in src/lib/types.ts for AI settings persistence.
+  - Updated src/lib/firestore_service.ts to save and load aiConfig from Firestore, and added a default aiConfig.
+  - Enhanced src/components/SettingsDialog.tsx to include UI for AI provider selection, base URL, model, and API key.
+  - Modified src/app/page.tsx to handle loading and saving of AI settings, and to pass aiConfig to SettingsDialog.
+
+- **UI Components:**
+  - Added src/components/ui/select.tsx and src/components/ui/label.tsx (shadcn/ui components) to support AI settings UI.
+
+- **Testing Infrastructure:**
+  - Set up Jest and React Testing Library for component and integration testing.
+  - Created babel.config.js and jest.config.js for test environment configuration.
+  - Added test script to package.json.
+  - Implemented unit tests for src/lib/ai_client.ts (passing).
+  - Implemented component tests for src/components/SettingsDialog.tsx (passing).
+  - Started integration tests for src/app/page.tsx (currently failing, paused as per user request).
+
+This addresses the "Build AI Chat Interface" issue by providing core AI integration and a robust testing foundation.
