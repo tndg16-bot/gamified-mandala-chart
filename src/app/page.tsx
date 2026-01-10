@@ -17,12 +17,18 @@ import { aiClient } from '@/lib/ai_client';
 import { useAuth } from "@/components/AuthContext";
 import { TigerAvatar } from "@/components/TigerAvatar";
 import { FirestoreService } from "@/lib/firestore_service";
+import { ChatUI } from "@/components/ChatUI";
+import { LessonList } from "@/components/LessonList";
+import { LessonDetail } from "@/components/LessonDetail";
+import { Lesson } from "@/lib/types";
 
 export default function Home() {
   const { user, loading: authLoading, signInWithGoogle, logout } = useAuth();
   const [data, setData] = useState<AppData | null>(null);
   const [loading, setLoading] = useState(true);
   const [isBrainstorming, setIsBrainstorming] = useState(false);
+  const [lessons, setLessons] = useState<Lesson[]>([]);
+  const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
 
   // Load AI config from localStorage
   useEffect(() => {
@@ -33,6 +39,7 @@ export default function Home() {
         console.log("Restored AI URL:", savedUrl);
       }
     }
+    FirestoreService.getAllLessons().then(setLessons).catch(console.error);
   }, []);
 
   // Sound Placeholder
@@ -186,6 +193,18 @@ export default function Home() {
     window.print();
   };
 
+  const handleStartLesson = async (lessonId: string) => {
+    if (!user || !data) return;
+    const newData = await FirestoreService.startLesson(user, data, lessonId);
+    setData(newData);
+  };
+
+  const handleCompleteLesson = async () => {
+    if (!selectedLesson || !user || !data) return;
+    const newData = await FirestoreService.completeLesson(user, data, selectedLesson.id);
+    setData(newData);
+  };
+
   if (loading || !data) return <div className="flex h-screen items-center justify-center">Loading Tiger...</div>;
 
   return (
@@ -226,9 +245,11 @@ export default function Home() {
       </div>
 
       <Tabs defaultValue="mandala" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 print:hidden glass-panel rounded-xl">
+        <TabsList className="grid w-full grid-cols-4 print:hidden glass-panel rounded-xl">
           <TabsTrigger value="mandala" className="text-white data-[state=active]:bg-white/20">Mandala View</TabsTrigger>
           <TabsTrigger value="kanban" className="text-white data-[state=active]:bg-white/20">Kanban View</TabsTrigger>
+          <TabsTrigger value="lessons" className="text-white data-[state=active]:bg-white/20">Lessons</TabsTrigger>
+          <TabsTrigger value="chat" className="text-white data-[state=active]:bg-white/20">AI Chat</TabsTrigger>
         </TabsList>
 
         <TabsContent value="mandala" className="mt-4">
@@ -312,6 +333,29 @@ export default function Home() {
             <KanbanColumn title="Doing" tasks={[]} />
             <KanbanColumn title="Done" tasks={doneTasks} />
           </div>
+        </TabsContent>
+
+        <TabsContent value="chat" className="mt-4">
+          <ChatUI className="max-w-2xl mx-auto" />
+        </TabsContent>
+
+        <TabsContent value="lessons" className="mt-4">
+          {selectedLesson ? (
+            <LessonDetail
+              lesson={selectedLesson}
+              progress={data?.lessonProgress?.find(lp => lp.lessonId === selectedLesson.id)}
+              onBack={() => setSelectedLesson(null)}
+              onCompleteLesson={handleCompleteLesson}
+            />
+          ) : (
+            <LessonList
+              lessons={lessons}
+              lessonProgress={data?.lessonProgress || []}
+              tigerLevel={data?.tiger.level || 1}
+              onStartLesson={handleStartLesson}
+              onViewLesson={setSelectedLesson}
+            />
+          )}
         </TabsContent>
       </Tabs>
 

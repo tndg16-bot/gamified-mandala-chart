@@ -34,6 +34,54 @@ export class AiClient {
         return this.config;
     }
 
+    async chat(messages: { role: string; content: string }[]): Promise<string> {
+        const systemPrompt = `あなたは親切なAIアシスタントです。ユーザーのタスク管理や目標達成をサポートしてください。`;
+
+        try {
+            if (this.config.provider === 'ollama') {
+                return await this.chatOllama(messages, systemPrompt);
+            }
+            return "申し訳ありませんが、現在チャット機能は使用できません。";
+        } catch (error) {
+            console.error("AI Chat Failed:", error);
+            return "申し訳ありませんが、エラーが発生しました。";
+        }
+    }
+
+    private async chatOllama(messages: { role: string; content: string }[], systemPrompt: string): Promise<string> {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 60000);
+
+        try {
+            const response = await fetch(`${this.config.baseUrl}/api/chat`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'ngrok-skip-browser-warning': 'true',
+                },
+                body: JSON.stringify({
+                    model: this.config.model,
+                    messages: [
+                        { role: 'system', content: systemPrompt },
+                        ...messages
+                    ],
+                    stream: false,
+                    options: { temperature: 0.7 }
+                }),
+                signal: controller.signal
+            });
+
+            if (!response.ok) {
+                throw new Error(`Ollama Error: ${response.status} ${response.statusText}`);
+            }
+
+            const data = await response.json();
+            return data.message.content;
+        } finally {
+            clearTimeout(timeoutId);
+        }
+    }
+
     async generateActions(goal: string, means: string): Promise<string[]> {
         const prompt = `
     目標: ${goal}

@@ -1,6 +1,6 @@
 import { db } from "./firebase";
-import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
-import { AppData, MandalaCell } from "./types";
+import { doc, getDoc, setDoc, updateDoc, collection, getDocs } from "firebase/firestore";
+import { AppData, MandalaCell, Lesson, LessonProgress } from "./types";
 import { User } from "firebase/auth";
 
 const DEFAULT_DATA: AppData = {
@@ -36,7 +36,8 @@ const DEFAULT_DATA: AppData = {
         lastLogin: new Date().toISOString(),
         evolutionStage: "Egg",
         pokedex: []
-    }
+    },
+    lessonProgress: []
 };
 
 export const FirestoreService = {
@@ -128,6 +129,52 @@ export const FirestoreService = {
             cell.title = newTitle;
             await this.saveUserData(user, newData);
         }
+        return newData;
+    },
+
+    async getAllLessons(): Promise<Lesson[]> {
+        const lessonsRef = collection(db, "lessons");
+        const snapshot = await getDocs(lessonsRef);
+        return snapshot.docs.map(doc => doc.data() as Lesson);
+    },
+
+    async startLesson(user: User, currentData: AppData, lessonId: string): Promise<AppData> {
+        if (!user.uid) throw new Error("User ID missing");
+
+        const newData = JSON.parse(JSON.stringify(currentData)) as AppData;
+        if (!newData.lessonProgress) newData.lessonProgress = [];
+
+        const existing = newData.lessonProgress.find(lp => lp.lessonId === lessonId);
+        if (existing) return currentData;
+
+        newData.lessonProgress.push({
+            lessonId,
+            completed: false,
+            startedAt: new Date().toISOString()
+        });
+
+        await this.saveUserData(user, newData);
+        return newData;
+    },
+
+    async completeLesson(user: User, currentData: AppData, lessonId: string): Promise<AppData> {
+        if (!user.uid) throw new Error("User ID missing");
+
+        const newData = JSON.parse(JSON.stringify(currentData)) as AppData;
+        if (!newData.lessonProgress) return currentData;
+
+        const progress = newData.lessonProgress.find(lp => lp.lessonId === lessonId);
+        if (!progress || progress.completed) return currentData;
+
+        progress.completed = true;
+        progress.completedAt = new Date().toISOString();
+
+        newData.tiger.xp += 50;
+        if (Math.floor(newData.tiger.xp / 100) > newData.tiger.level - 1) {
+            newData.tiger.level += 1;
+        }
+
+        await this.saveUserData(user, newData);
         return newData;
     }
 };

@@ -42,4 +42,28 @@ export type TigerStats = {
 export type AppData = {
     mandala: MandalaChart;
     tiger: TigerStats;
+    lessonProgress?: LessonProgress[];
+};
+
+export type ChatMessage = {
+    id: string;
+    role: 'user' | 'assistant' | 'system';
+    content: string;
+    timestamp: string;
+};
+
+export type Lesson = {
+    id: string;
+    title: string;
+    description: string;
+    content: string;
+    order: number;
+    requiredLevel: number;
+};
+
+export type LessonProgress = {
+    lessonId: string;
+    completed: boolean;
+    startedAt?: string;
+    completedAt?: string;
 };
