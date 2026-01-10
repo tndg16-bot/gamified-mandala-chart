@@ -56,7 +56,8 @@ const DEFAULT_DATA: AppData = {
         emailEnabled: false,
         pushEnabled: false
     },
-    pushTokens: []
+    pushTokens: [],
+    journalEntries: []
 };
 
 export const FirestoreService = {
@@ -76,7 +77,8 @@ export const FirestoreService = {
                 aiConfig: userData.aiConfig || DEFAULT_DATA.aiConfig,
                 xpHistory: userData.xpHistory || DEFAULT_DATA.xpHistory,
                 notifications: userData.notifications || DEFAULT_DATA.notifications,
-                pushTokens: userData.pushTokens || DEFAULT_DATA.pushTokens
+                pushTokens: userData.pushTokens || DEFAULT_DATA.pushTokens,
+                journalEntries: userData.journalEntries || DEFAULT_DATA.journalEntries
             };
         } else {
             // Initialize new user data

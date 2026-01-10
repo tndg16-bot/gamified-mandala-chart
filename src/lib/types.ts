@@ -56,6 +56,15 @@ export type NotificationConfig = {
     pushEnabled: boolean;
 };
 
+export type JournalEntry = {
+    id: string;
+    date: string;
+    createdAt: string;
+    achievements: string;
+    challenges: string;
+    goals: string;
+};
+
 export type AppData = {
     mandala: MandalaChart;
     tiger: TigerStats;
@@ -65,6 +74,7 @@ export type AppData = {
     xpHistory?: { date: string; xp: number }[];
     notifications?: NotificationConfig;
     pushTokens?: string[];
+    journalEntries?: JournalEntry[];
 };
 
 export type ChatMessage = {

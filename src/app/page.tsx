@@ -50,6 +50,12 @@ export default function Home() {
   const [exporting, setExporting] = useState(false);
   const [xpRange, setXpRange] = useState<'7' | '30'>('7');
   const [recentBadge, setRecentBadge] = useState<{ id: string; title: string; description: string } | null>(null);
+  const [journalDraft, setJournalDraft] = useState({
+    achievements: '',
+    challenges: '',
+    goals: '',
+  });
+  const [isSavingJournal, setIsSavingJournal] = useState(false);
 
   const [generatedMandala, setGeneratedMandala] = useState<{ centerGoal: string; surroundingGoals: string[] } | null>(null);
   const [isGeneratingMandala, setIsGeneratingMandala] = useState(false);
@@ -336,6 +342,8 @@ export default function Home() {
   }).join(' ');
   const todayKey = new Date().toISOString().split('T')[0];
   const todayTasks = subTasks.filter(task => !task.completed && task.createdAt?.startsWith(todayKey));
+  const journalEntries = data?.journalEntries ?? [];
+  const sortedJournalEntries = [...journalEntries].sort((a, b) => b.date.localeCompare(a.date));
 
   const badgeDefinitions = [
     {
@@ -437,6 +445,45 @@ export default function Home() {
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const handleSaveJournalEntry = async () => {
+    if (!user || !data) return;
+    if (![journalDraft.achievements, journalDraft.challenges, journalDraft.goals].some(value => value.trim())) {
+      return;
+    }
+
+    setIsSavingJournal(true);
+    try {
+      const entryDate = new Date().toISOString().split('T')[0];
+      const existingIndex = journalEntries.findIndex(entry => entry.date === entryDate);
+      const now = new Date().toISOString();
+      const entry = {
+        id: existingIndex >= 0 ? journalEntries[existingIndex].id : `journal-${Date.now()}`,
+        date: entryDate,
+        createdAt: existingIndex >= 0 ? journalEntries[existingIndex].createdAt : now,
+        achievements: journalDraft.achievements.trim(),
+        challenges: journalDraft.challenges.trim(),
+        goals: journalDraft.goals.trim(),
+      };
+
+      const updatedEntries = [...journalEntries];
+      if (existingIndex >= 0) {
+        updatedEntries[existingIndex] = entry;
+      } else {
+        updatedEntries.push(entry);
+      }
+
+      const newData = { ...data, journalEntries: updatedEntries };
+      await FirestoreService.saveUserData(user, newData);
+      setData(newData);
+      setJournalDraft({ achievements: '', challenges: '', goals: '' });
+    } catch (error) {
+      console.error('Failed to save journal entry:', error);
+      alert('Failed to save journal entry. Please try again.');
+    } finally {
+      setIsSavingJournal(false);
+    }
   };
 
   const handleStartLesson = async (lessonId: string) => {
@@ -685,9 +732,10 @@ export default function Home() {
       </div>
 
       <Tabs defaultValue="mandala" className="w-full">
-        <TabsList className="grid w-full grid-cols-6 print:hidden glass-panel rounded-xl">
+        <TabsList className="grid w-full grid-cols-7 print:hidden glass-panel rounded-xl">
           <TabsTrigger value="dashboard" className="text-white data-[state=active]:bg-white/20">Dashboard</TabsTrigger>
           <TabsTrigger value="achievements" className="text-white data-[state=active]:bg-white/20">Achievements</TabsTrigger>
+          <TabsTrigger value="journal" className="text-white data-[state=active]:bg-white/20">Journal</TabsTrigger>
           <TabsTrigger value="mandala" className="text-white data-[state=active]:bg-white/20">Mandala View</TabsTrigger>
           <TabsTrigger value="kanban" className="text-white data-[state=active]:bg-white/20">Kanban View</TabsTrigger>
           <TabsTrigger value="lessons" className="text-white data-[state=active]:bg-white/20">Lessons</TabsTrigger>
@@ -813,6 +861,71 @@ export default function Home() {
                 </Card>
               );
             })}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="journal" className="mt-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <Card className="glass-panel">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Daily reflection</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-xs text-white/70">Today wins</label>
+                  <textarea
+                    value={journalDraft.achievements}
+                    onChange={(e) => setJournalDraft((prev) => ({ ...prev, achievements: e.target.value }))}
+                    className="min-h-[80px] w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/90 placeholder:text-white/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/40"
+                    placeholder="What went well today?"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs text-white/70">Challenges</label>
+                  <textarea
+                    value={journalDraft.challenges}
+                    onChange={(e) => setJournalDraft((prev) => ({ ...prev, challenges: e.target.value }))}
+                    className="min-h-[80px] w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/90 placeholder:text-white/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/40"
+                    placeholder="What was hard or unclear?"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs text-white/70">Tomorrow focus</label>
+                  <textarea
+                    value={journalDraft.goals}
+                    onChange={(e) => setJournalDraft((prev) => ({ ...prev, goals: e.target.value }))}
+                    className="min-h-[80px] w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/90 placeholder:text-white/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/40"
+                    placeholder="What matters most tomorrow?"
+                  />
+                </div>
+                <Button onClick={handleSaveJournalEntry} disabled={isSavingJournal}>
+                  {isSavingJournal ? 'Saving...' : 'Save reflection'}
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card className="glass-panel">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Reflection timeline</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {sortedJournalEntries.length > 0 ? (
+                  sortedJournalEntries.map((entry) => (
+                    <div key={entry.id} className="rounded-md border border-white/10 bg-white/5 p-3 text-xs text-white/80 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold">{entry.date}</span>
+                        <Badge variant="secondary" className="text-[10px]">Journal</Badge>
+                      </div>
+                      <div><span className="text-white/60">Wins:</span> {entry.achievements || '-'}</div>
+                      <div><span className="text-white/60">Challenges:</span> {entry.challenges || '-'}</div>
+                      <div><span className="text-white/60">Tomorrow:</span> {entry.goals || '-'}</div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-xs text-white/60">No reflections yet.</div>
+                )}
+              </CardContent>
+            </Card>
           </div>
         </TabsContent>
 
