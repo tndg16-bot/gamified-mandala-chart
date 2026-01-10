@@ -35,6 +35,13 @@ const DEFAULT_NOTIFICATION_CONFIG: NotificationConfig = {
   pushEnabled: false,
 };
 
+const getWeekKey = (date: Date) => {
+  const start = new Date(date.getFullYear(), 0, 1);
+  const days = Math.floor((date.getTime() - start.getTime()) / (24 * 60 * 60 * 1000));
+  const week = Math.floor((days + start.getDay()) / 7);
+  return `${date.getFullYear()}-W${week}`;
+};
+
 export default function Home() {
   const { user, loading: authLoading, signInWithGoogle, logout } = useAuth();
   const [data, setData] = useState<AppData | null>(null);
@@ -450,8 +457,9 @@ export default function Home() {
     window.print();
   };
 
-  const handleGenerateCheckin = async () => {
+  const handleGenerateCheckin = useCallback(async (source: 'manual' | 'auto' = 'manual') => {
     if (!user || !data) return;
+    if (isGeneratingCheckin) return;
     setIsGeneratingCheckin(true);
     try {
       const prompt = [
@@ -478,13 +486,26 @@ export default function Home() {
       const newData = { ...data, coachingLogs: [entry, ...coachingLogs] };
       await FirestoreService.saveUserData(user, newData);
       setData(newData);
+      if (typeof window !== 'undefined') {
+        const weekKey = getWeekKey(new Date());
+        localStorage.setItem('auto_checkin_week', weekKey);
+      }
     } catch (error) {
       console.error('Failed to generate check-in:', error);
       alert('Failed to generate check-in. Please try again.');
     } finally {
       setIsGeneratingCheckin(false);
     }
-  };
+  }, [user, data, isGeneratingCheckin, completionRate, doneTasks.length, totalTasks, streakDays, data?.tiger.level, data?.tiger.xp, coachingLogs]);
+
+  useEffect(() => {
+    if (!user || !data) return;
+    if (typeof window === 'undefined') return;
+    const weekKey = getWeekKey(new Date());
+    const lastKey = localStorage.getItem('auto_checkin_week');
+    if (lastKey === weekKey) return;
+    handleGenerateCheckin('auto');
+  }, [user, data, handleGenerateCheckin]);
 
   const handleSaveJournalEntry = async () => {
     if (!user || !data) return;
