@@ -1,8 +1,19 @@
 'use client';
 
-import { AiConfig, AppData, MandalaCell, SubTask } from '@/lib/types';
+import { AiConfig, AppData, MandalaCell, SubTask, MandalaChart } from '@/lib/types';
 import { aiClient } from '@/lib/ai_client';
 import { DEFAULT_CONFIG as DEFAULT_AI_CLIENT_CONFIG } from '@/lib/ai_client'; // ai_clientからデフォルト設定をインポート
+import { MessageSquarePlus } from 'lucide-react'; // 新しいアイコンをインポート
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+
 
 export default function Home() {
   const { user, loading: authLoading, signInWithGoogle, logout } = useAuth();
@@ -14,6 +25,11 @@ export default function Home() {
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
+
+  const [generatedMandala, setGeneratedMandala] = useState<{ centerGoal: string; surroundingGoals: string[] } | null>(null);
+  const [isGeneratingMandala, setIsGeneratingMandala] = useState(false);
+  const [isMandalaPreviewOpen, setIsMandalaPreviewOpen] = useState(false);
+  const [userMandalaGoal, setUserMandalaGoal] = useState('');
 
   // Initialize AI config from localStorage on component mount
   useEffect(() => {
@@ -280,6 +296,68 @@ export default function Home() {
       throw error;
     }
   };
+
+  // Function to handle Mandala generation
+  const handleGenerateMandala = async () => {
+    if (!userMandalaGoal.trim() || isGeneratingMandala) return;
+
+    setIsGeneratingMandala(true);
+    setGeneratedMandala(null);
+    try {
+      const result = await aiClient.generateMandalaChart(userMandalaGoal);
+      setGeneratedMandala(result);
+      setIsMandalaPreviewOpen(true);
+    } catch (e: any) {
+      console.error("Failed to generate mandala chart:", e);
+      alert(`Failed to generate mandala chart: ${e.message}`);
+    } finally {
+      setIsGeneratingMandala(false);
+    }
+  };
+
+  // Function to apply generated Mandala to current data
+  const handleApplyGeneratedMandala = async () => {
+    if (!user || !data || !generatedMandala) return;
+
+    const newMandala: MandalaChart = {
+      centerSection: {
+        id: "section-center",
+        centerCell: { id: "center-goal", title: generatedMandala.centerGoal, completed: false },
+        surroundingCells: Array.from({ length: 8 }).map((_, i) => ({
+          id: `center-sub-${i}`,
+          title: generatedMandala.surroundingGoals[i] || `Goal ${i + 1}`,
+          completed: false
+        }))
+      },
+      surroundingSections: Array.from({ length: 8 }).map((_, i) => ({
+        id: `section-${i}`,
+        centerCell: {
+          id: `sec-center-${i}`,
+          title: generatedMandala.surroundingGoals[i] || `Goal ${i + 1}`,
+          completed: false
+        },
+        surroundingCells: Array.from({ length: 8 }).map((_, j) => ({
+          id: `sec-${i}-cell-${j}`,
+          title: `Task ${j + 1}`, // Default tasks for new sections
+          completed: false,
+          subTasks: []
+        }))
+      }))
+    };
+
+    try {
+      const updatedData = await FirestoreService.updateMandalaChart(user, newMandala);
+      setData(updatedData);
+      setGeneratedMandala(null);
+      setIsMandalaPreviewOpen(false);
+      setUserMandalaGoal('');
+      alert("Mandala chart updated successfully!");
+    } catch (e: any) {
+      console.error("Failed to apply generated mandala:", e);
+      alert(`Failed to apply generated mandala: ${e.message}`);
+    }
+  };
+
 
   if (loading || !data) return <div className="flex h-screen items-center justify-center">Loading Tiger...</div>;
 

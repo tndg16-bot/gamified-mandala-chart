@@ -241,6 +241,142 @@ export class AiClient {
             clearTimeout(timeoutId);
         }
     }
+
+    // New method for generating Mandala Chart structure
+    async generateMandalaChart(userGoal: string): Promise<{ centerGoal: string; surroundingGoals: string[] }> {
+        const prompt = `
+あなたは世界で最も優れたマンダラチャート作成AIです。ユーザーの「目標」を受け取り、その目標を達成するための「中心目標」と、それを囲む8つの「周辺目標」を提案してください。
+
+出力は必ず以下のJSON形式にしてください。
+
+{
+  "centerGoal": "中心目標のタイトル",
+  "surroundingGoals": [
+    "周辺目標1のタイトル",
+    "周辺目標2のタイトル",
+    "周辺目標3のタイトル",
+    "周辺目標4のタイトル",
+    "周辺目標5のタイトル",
+    "周辺目標6のタイトル",
+    "周辺目標7のタイトル",
+    "周辺目標8のタイトル"
+  ]
+}
+
+制約:
+- 各目標のタイトルは簡潔にしてください。（例: 「健康維持」ではなく「健康」）
+- 周辺目標は必ず8つ提案してください。
+- 出力はJSONのみで、他の説明や前置きは一切含めないでください。
+
+ユーザーの目標: ${userGoal}
+`;
+
+        try {
+            let jsonString: string;
+            if (this.config.provider === 'ollama') {
+                jsonString = await this.callOllamaGenerateMandala(prompt);
+            } else if (this.config.provider === 'gemini') {
+                jsonString = await this.callGeminiGenerateMandala(prompt);
+            } else {
+                return this.getFallbackMandalaChart();
+            }
+
+            const parsed = JSON.parse(jsonString);
+            if (parsed.centerGoal && Array.isArray(parsed.surroundingGoals) && parsed.surroundingGoals.length === 8) {
+                return parsed;
+            } else {
+                console.error("AI generated an invalid Mandala Chart structure:", jsonString);
+                return this.getFallbackMandalaChart();
+            }
+        } catch (error) {
+            console.error("AI Mandala Chart Generation Failed (Using Fallback):", error);
+            // Gemini API Keyが見つからない場合のエラーメッセージを追加
+            if (this.config.provider === 'gemini' && (!this.config.apiKey || !this.config.baseUrl)) {
+                console.error("Gemini APIのBase URLまたはAPI Keyが設定されていません。設定画面で確認してください。");
+            }
+            return this.getFallbackMandalaChart();
+        }
+    }
+
+    private getFallbackMandalaChart(): { centerGoal: string; surroundingGoals: string[] } {
+        return {
+            centerGoal: "新しい目標",
+            surroundingGoals: [
+                "行動1", "行動2", "行動3", "行動4", "行動5", "行動6", "行動7", "行動8"
+            ]
+        };
+    }
+
+    private async callOllamaGenerateMandala(prompt: string): Promise<string> {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s Timeout
+
+        try {
+            const response = await fetch(`${this.config.baseUrl}/api/generate`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'ngrok-skip-browser-warning': 'true',
+                },
+                body: JSON.stringify({
+                    model: this.config.model,
+                    prompt: prompt,
+                    stream: false,
+                    options: { temperature: 0.7 }
+                }),
+                signal: controller.signal
+            });
+
+            if (!response.ok) {
+                throw new Error(`Ollama Error: ${response.status} ${response.statusText}`);
+            }
+
+            const data = await response.json();
+            return data.response; // Expecting raw JSON string
+        } finally {
+            clearTimeout(timeoutId);
+        }
+    }
+
+    private async callGeminiGenerateMandala(prompt: string): Promise<string> {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s Timeout
+
+        try {
+            const response = await fetch(`${this.config.baseUrl}`, { // baseUrlはGeminiのエンドポイントURLになる想定
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-goog-api-key': this.config.apiKey || '', // API Keyを使用
+                },
+                body: JSON.stringify({
+                    contents: [{
+                        role: 'user',
+                        parts: [{ text: prompt }]
+                    }],
+                    generationConfig: {
+                        temperature: 0.7,
+                        maxOutputTokens: 800,
+                    },
+                    // safetySettings: [...] // 必要に応じて設定
+                }),
+                signal: controller.signal
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(`Gemini Error: ${response.status} ${response.statusText} - ${JSON.stringify(errorData)}`);
+            }
+
+            const data = await response.json();
+            if (data.candidates && data.candidates.length > 0 && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts.length > 0) {
+                return data.candidates[0].content.parts[0].text; // Expecting raw JSON string
+            }
+            throw new Error("Gemini APIからの応答が不正です。");
+        } finally {
+            clearTimeout(timeoutId);
+        }
+    }
 }
 
 export const aiClient = new AiClient();

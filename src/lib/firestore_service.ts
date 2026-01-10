@@ -206,5 +206,25 @@ export const FirestoreService = {
         await updateDoc(userDocRef, {
             aiConfig: aiConfig
         });
+    },
+
+    async updateMandalaChart(user: User, newMandala: MandalaChart): Promise<AppData> {
+        if (!user.uid) throw new Error("User ID missing");
+
+        const userDocRef = doc(db, "users", user.uid);
+        const snapshot = await getDoc(userDocRef);
+
+        if (!snapshot.exists()) {
+            throw new Error("User data not found for updating mandala chart.");
+        }
+
+        const currentData = snapshot.data() as AppData;
+        const updatedData = {
+            ...currentData,
+            mandala: newMandala,
+        };
+
+        await setDoc(userDocRef, updatedData, { merge: true });
+        return updatedData;
     }
 };

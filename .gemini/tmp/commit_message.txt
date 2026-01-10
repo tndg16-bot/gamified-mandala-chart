@@ -1,18 +1,19 @@
-feat: Implement lesson import feature
+feat: Implement AI Mandala Chart generation feature
 
-This commit implements the lesson import feature as per Issue #4:
+This commit implements the AI-powered Mandala Chart generation feature as per Issue #5:
 
-- **src/lib/lesson_parser.ts:**
-  - Improved the parsing logic for lesson description and metadata extraction to be more robust.
-
-- **src/components/LessonImportDialog.tsx:**
-  - Updated the dialog description to reference the `docs/lesson_import_format.md` for detailed format.
-  - Enhanced the `handleParse` function to include validation for required fields (Title, Description, Content) after parsing, providing better user feedback for invalid lesson formats.
+- **src/lib/ai_client.ts:**
+  - Added `generateMandalaChart` method to prompt AI for a structured Mandala Chart.
+  - Implemented `callOllamaGenerateMandala` and `callGeminiGenerateMandala` for provider-specific API calls expecting JSON output.
+  - Included logic for parsing AI responses and fallback mechanisms for invalid outputs or errors.
 
 - **src/lib/firestore_service.ts:**
-  - Verified the existing `importLessons` method works as expected for saving parsed lessons to Firestore.
+  - Added `updateMandalaChart` method to persist newly generated Mandala Charts to Firestore, updating the user's `AppData`.
 
-- **src/components/LessonList.tsx:**
-  - Verified the component correctly displays imported lessons.
+- **src/app/page.tsx:**
+  - Integrated UI for triggering Mandala Chart generation within the AI Chat tab.
+  - Added state management (`generatedMandala`, `isGeneratingMandala`, `isMandalaPreviewOpen`, `userMandalaGoal`) for the generation process.
+  - Implemented a preview `Dialog` to display AI-generated Mandala Chart structure to the user.
+  - Developed `handleGenerateMandala` and `handleApplyGeneratedMandala` functions to orchestrate the generation and application of new Mandala Charts.
 
-This completes the development of the lesson import functionality.
+This completes the development of the AI-powered Mandala Chart generation functionality.
