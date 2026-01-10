@@ -35,6 +35,7 @@ export type TigerStats = {
     level: number;
     mood: 'Happy' | 'Cloudy' | 'Runaway';
     lastLogin: string; // ISO Date
+    streakDays: number;
     evolutionStage: 'Egg' | 'Cub' | 'Adult' | 'Awakened';
     pokedex: string[]; // List of IDs of past cleared tigers
 };
@@ -44,12 +45,25 @@ export type ObsidianConfig = {
     autoSync: boolean;
 };
 
+export type NotificationFrequency = 'daily' | 'weekdays' | 'weekly';
+
+export type NotificationConfig = {
+    enabled: boolean;
+    time: string;
+    frequency: NotificationFrequency;
+    weeklyDay?: number;
+    emailEnabled: boolean;
+    pushEnabled: boolean;
+};
+
 export type AppData = {
     mandala: MandalaChart;
     tiger: TigerStats;
     lessonProgress?: LessonProgress[];
     obsidian?: ObsidianConfig;
     aiConfig?: AiConfig; // AI設定を追加
+    xpHistory?: { date: string; xp: number }[];
+    notifications?: NotificationConfig;
 };
 
 export type ChatMessage = {

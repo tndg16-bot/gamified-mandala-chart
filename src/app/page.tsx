@@ -1,30 +1,53 @@
 'use client';
 
-import { AiConfig, AppData, MandalaCell, SubTask, MandalaChart } from '@/lib/types';
-import { aiClient } from '@/lib/ai_client';
-import { DEFAULT_CONFIG as DEFAULT_AI_CLIENT_CONFIG } from '@/lib/ai_client'; // ai_clientからデフォルト設定をインポート
-import { MessageSquarePlus } from 'lucide-react'; // 新しいアイコンをインポート
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
+import { useCallback, useEffect, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { CheckCircle2, Circle, Sun } from 'lucide-react';
 
+import { AiConfig, AppData, Lesson, MandalaCell, MandalaChart, NotificationConfig, SubTask } from '@/lib/types';
+import { aiClient, DEFAULT_CONFIG as DEFAULT_AI_CLIENT_CONFIG } from '@/lib/ai_client';
+import { FirestoreService } from '@/lib/firestore_service';
+import { exportMandalaToMarkdown, exportTasksToMarkdown } from '@/app/actions';
+
+import { useAuth } from '@/components/AuthContext';
+import { LessonImportDialog } from '@/components/LessonImportDialog';
+import { LessonDetail } from '@/components/LessonDetail';
+import { LessonList } from '@/components/LessonList';
+import { ChatUI } from '@/components/ChatUI';
+import { SettingsDialog } from '@/components/SettingsDialog';
+import { TigerAvatar } from '@/components/TigerAvatar';
+
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogHeader } from '@/components/ui/dialog';
+import { Progress } from '@/components/ui/progress';
+import { Separator } from '@/components/ui/separator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
+const DEFAULT_NOTIFICATION_CONFIG: NotificationConfig = {
+  enabled: false,
+  time: '09:00',
+  frequency: 'daily',
+  weeklyDay: 1,
+  emailEnabled: false,
+  pushEnabled: false,
+};
 
 export default function Home() {
   const { user, loading: authLoading, signInWithGoogle, logout } = useAuth();
   const [data, setData] = useState<AppData | null>(null);
   const [loading, setLoading] = useState(true);
   const [isBrainstorming, setIsBrainstorming] = useState(false);
+  const [isAddingSuggestions, setIsAddingSuggestions] = useState(false);
+  const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
+  const [selectedSuggestions, setSelectedSuggestions] = useState<string[]>([]);
   const [lessons, setLessons, ] = useState<Lesson[]>([]);
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [xpRange, setXpRange] = useState<'7' | '30'>('7');
 
   const [generatedMandala, setGeneratedMandala] = useState<{ centerGoal: string; surroundingGoals: string[] } | null>(null);
   const [isGeneratingMandala, setIsGeneratingMandala] = useState(false);
@@ -119,6 +142,42 @@ export default function Home() {
     }
   }, [data, handleAutoSync]);
 
+  useEffect(() => {
+    if (!data?.notifications?.enabled || !data.notifications.pushEnabled) return;
+    if (typeof window === 'undefined' || typeof Notification === 'undefined') return;
+
+    const config = data.notifications;
+    const shouldSendToday = () => {
+      const day = new Date().getDay();
+      if (config.frequency === 'weekdays') return day >= 1 && day <= 5;
+      if (config.frequency === 'weekly') return day === (config.weeklyDay ?? 1);
+      return true;
+    };
+
+    const checkAndNotify = () => {
+      if (!shouldSendToday()) return;
+      if (!config.time) return;
+      const [hour, minute] = config.time.split(':').map(Number);
+      const now = new Date();
+      if (now.getHours() !== hour || now.getMinutes() !== minute) return;
+
+      const todayKey = now.toISOString().split('T')[0];
+      const lastSent = localStorage.getItem('notification_last_sent');
+      if (lastSent === todayKey) return;
+
+      if (Notification.permission === 'granted') {
+        new Notification('Daily Mandala Check-in', {
+          body: 'Review your goals and complete one small action today.',
+        });
+        localStorage.setItem('notification_last_sent', todayKey);
+      }
+    };
+
+    const interval = window.setInterval(checkAndNotify, 60 * 1000);
+    checkAndNotify();
+    return () => window.clearInterval(interval);
+  }, [data?.notifications]);
+
   if (authLoading) return <div className="flex h-screen items-center justify-center">Authenticating...</div>;
 
   if (!user) {
@@ -135,6 +194,8 @@ export default function Home() {
 
   const openValidCellModal = (sectionId: string, cell: MandalaCell) => {
     setSelectedCell({ sectionId, cell });
+    setAiSuggestions([]);
+    setSelectedSuggestions([]);
   };
 
   const handleAddSubTask = async () => {
@@ -149,6 +210,62 @@ export default function Home() {
     const updatedCell = updatedSection?.surroundingCells.find(c => c.id === selectedCell.cell.id);
     if (updatedCell) {
       setSelectedCell({ sectionId: selectedCell.sectionId, cell: updatedCell });
+    }
+  };
+
+  const toggleSuggestion = (suggestion: string) => {
+    setSelectedSuggestions((prev) => (
+      prev.includes(suggestion)
+        ? prev.filter((item) => item !== suggestion)
+        : [...prev, suggestion]
+    ));
+  };
+
+  const handleGenerateSuggestions = async () => {
+    if (!selectedCell || !data || !user) return;
+    setIsBrainstorming(true);
+    try {
+      const suggestions = await aiClient.generateActions(
+        data.mandala.centerSection.centerCell.title,
+        selectedCell.cell.title
+      );
+      const trimmed = suggestions.map((suggestion) => suggestion.trim()).filter(Boolean);
+      setAiSuggestions(trimmed);
+      setSelectedSuggestions(trimmed);
+    } catch (e: any) {
+      console.error("AI Brainstorming failed:", e);
+    } finally {
+      setIsBrainstorming(false);
+    }
+  };
+
+  const handleAddSuggestions = async (suggestions: string[]) => {
+    if (!selectedCell || !data || !user) return;
+    const trimmed = suggestions.map((suggestion) => suggestion.trim()).filter(Boolean);
+    if (trimmed.length === 0) return;
+
+    setIsAddingSuggestions(true);
+    try {
+      const newData = await FirestoreService.addSubTasks(
+        user,
+        data,
+        selectedCell.sectionId,
+        selectedCell.cell.id,
+        trimmed
+      );
+      setData(newData);
+
+      const updatedSection = newData.mandala.surroundingSections.find(s => s.id === selectedCell.sectionId);
+      const updatedCell = updatedSection?.surroundingCells.find(c => c.id === selectedCell.cell.id);
+      if (updatedCell) {
+        setSelectedCell({ sectionId: selectedCell.sectionId, cell: updatedCell });
+      }
+      setAiSuggestions([]);
+      setSelectedSuggestions([]);
+    } catch (e: any) {
+      console.error("Adding AI suggestions failed:", e);
+    } finally {
+      setIsAddingSuggestions(false);
     }
   };
 
@@ -189,6 +306,32 @@ export default function Home() {
   const subTasks = getAllSubTasks();
   const todoTasks = subTasks.filter(t => !t.completed);
   const doneTasks = subTasks.filter(t => t.completed);
+  const totalTasks = subTasks.length;
+  const completionRate = totalTasks > 0 ? Math.round((doneTasks.length / totalTasks) * 100) : 0;
+  const streakDays = data?.tiger.streakDays ?? 0;
+
+  const xpHistory = data?.xpHistory || [];
+  const xpHistoryMap = new Map(xpHistory.map(entry => [entry.date, entry.xp]));
+  const buildXpSeries = (days: number) => {
+    const series = [];
+    for (let i = days - 1; i >= 0; i -= 1) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      const key = date.toISOString().split('T')[0];
+      series.push({ date: key, xp: xpHistoryMap.get(key) || 0 });
+    }
+    return series;
+  };
+  const xpSeries = buildXpSeries(Number(xpRange));
+  const xpValues = xpSeries.map(entry => entry.xp);
+  const maxXp = Math.max(10, ...xpValues);
+  const xpPoints = xpValues.map((value, index) => {
+    const x = (index / Math.max(1, xpValues.length - 1)) * 100;
+    const y = 100 - (value / maxXp) * 100;
+    return `${x},${y}`;
+  }).join(' ');
+  const todayKey = new Date().toISOString().split('T')[0];
+  const todayTasks = subTasks.filter(task => !task.completed && task.createdAt?.startsWith(todayKey));
 
   const handleExportMarkdown = () => {
     if (!data) return;
@@ -274,11 +417,12 @@ export default function Home() {
     }
   };
 
-  const handleSaveSettings = async (exportPath: string, autoSync: boolean, aiConfig: AiConfig) => {
+  const handleSaveSettings = async (exportPath: string, autoSync: boolean, aiConfig: AiConfig, notifications: NotificationConfig) => {
     if (!user) return;
     try {
       await FirestoreService.updateObsidianConfig(user, exportPath, autoSync);
-      await FirestoreService.updateAiConfig(user, aiConfig); // AI設定をFirestoreに保存
+      await FirestoreService.updateAiConfig(user, aiConfig);
+      await FirestoreService.updateNotificationConfig(user, notifications); // AI設定をFirestoreに保存
 
       // localStorageにもAI設定を保存
       if (typeof window !== 'undefined') {
@@ -387,7 +531,14 @@ export default function Home() {
               {copied ? "✅ Copied!" : "📤 MD"}
             </Button>
             <Button variant="outline" className="flex-1 md:flex-none" onClick={handlePrint}>🖨️ PDF</Button>
-            <Button variant="outline" className="flex-1 md:flex-none" onClick={() => setIsSettingsDialogOpen(true)}>⚙️</Button>
+            <Button
+              variant="outline"
+              className="flex-1 md:flex-none"
+              onClick={() => setIsSettingsDialogOpen(true)}
+              aria-label="Open settings"
+            >
+              ⚙️
+            </Button>
           </div>
           <div className="w-full md:w-64">
             <div className="flex justify-between text-xs mb-1">
@@ -435,12 +586,116 @@ export default function Home() {
       </div>
 
       <Tabs defaultValue="mandala" className="w-full">
-        <TabsList className="grid w-full grid-cols-4 print:hidden glass-panel rounded-xl">
+        <TabsList className="grid w-full grid-cols-5 print:hidden glass-panel rounded-xl">
+          <TabsTrigger value="dashboard" className="text-white data-[state=active]:bg-white/20">Dashboard</TabsTrigger>
           <TabsTrigger value="mandala" className="text-white data-[state=active]:bg-white/20">Mandala View</TabsTrigger>
           <TabsTrigger value="kanban" className="text-white data-[state=active]:bg-white/20">Kanban View</TabsTrigger>
           <TabsTrigger value="lessons" className="text-white data-[state=active]:bg-white/20">Lessons</TabsTrigger>
           <TabsTrigger value="chat" className="text-white data-[state=active]:bg-white/20">AI Chat</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="dashboard" className="mt-4">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <Card className="glass-panel">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Overall progress</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col items-center gap-4">
+                <div
+                  className="h-32 w-32 rounded-full flex items-center justify-center"
+                  style={{
+                    background: `conic-gradient(#fb923c ${completionRate}%, rgba(255,255,255,0.12) 0)`
+                  }}
+                >
+                  <div className="h-20 w-20 rounded-full bg-slate-900/80 flex items-center justify-center text-lg font-bold text-white">
+                    {completionRate}%
+                  </div>
+                </div>
+                <div className="w-full space-y-2">
+                  <div className="flex justify-between text-xs text-white/80">
+                    <span>Completed</span>
+                    <span>{doneTasks.length}/{totalTasks}</span>
+                  </div>
+                  <Progress value={completionRate} className="h-2" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="glass-panel lg:col-span-2">
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm">XP trend</CardTitle>
+                  <div className="flex gap-2">
+                    <Button
+                      variant={xpRange === '7' ? 'secondary' : 'ghost'}
+                      size="sm"
+                      className="text-xs"
+                      onClick={() => setXpRange('7')}
+                    >
+                      7d
+                    </Button>
+                    <Button
+                      variant={xpRange === '30' ? 'secondary' : 'ghost'}
+                      size="sm"
+                      className="text-xs"
+                      onClick={() => setXpRange('30')}
+                    >
+                      30d
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="h-32 w-full rounded-md border border-white/10 bg-white/5 p-3">
+                  <svg viewBox="0 0 100 100" className="h-full w-full">
+                    <polyline
+                      fill="none"
+                      stroke="#fb923c"
+                      strokeWidth="3"
+                      points={xpPoints}
+                    />
+                  </svg>
+                </div>
+                <div className="flex items-center justify-between text-xs text-white/70">
+                  <span>Total XP</span>
+                  <span>{data.tiger.xp}</span>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
+            <Card className="glass-panel">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Streak</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <div className="text-3xl font-bold text-white">{streakDays} days</div>
+                <div className="text-xs text-white/70">Keep the chain alive by completing a task today.</div>
+              </CardContent>
+            </Card>
+
+            <Card className="glass-panel">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Today tasks</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {todayTasks.length > 0 ? (
+                    todayTasks.slice(0, 6).map(task => (
+                      <div key={task.id} className="flex items-center justify-between rounded-md border border-white/10 px-3 py-2 text-xs text-white/80">
+                        <span className="truncate">{task.title}</span>
+                        <Badge variant="secondary" className="text-[10px]">{task.parentTitle}</Badge>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-xs text-white/60">No tasks scheduled for today.</div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
 
         <TabsContent value="mandala" className="mt-4">
           <AnimatePresence mode="wait">
@@ -550,7 +805,16 @@ export default function Home() {
       </Tabs>
 
       {/* Level 3: SubTask Modal */}
-      <Dialog open={!!selectedCell} onOpenChange={(open) => !open && setSelectedCell(null)}>
+      <Dialog
+        open={!!selectedCell}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedCell(null);
+            setAiSuggestions([]);
+            setSelectedSuggestions([]);
+          }
+        }}
+      >
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <div className="flex flex-col gap-1">
@@ -622,53 +886,75 @@ export default function Home() {
                     }
                   }}
                 >
-                  ⚙️
+                  Settings
                 </Button>
                 <Button
                   variant="ghost"
                   size="sm"
                   className="text-orange-600 hover:text-orange-700 hover:bg-orange-50 gap-1"
-                  onClick={async () => {
-                    if (!selectedCell || !data || !user) return;
-                    setIsBrainstorming(true);
-                    try {
-                      const suggestions = await aiClient.generateActions(
-                        data.mandala.centerSection.centerCell.title, // Goal
-                        selectedCell.cell.title // Means
-                      );
-
-
-                      // Add suggestions automatically
-                      // Note: sequential addition to ensure order
-                      for (const suggestion of suggestions) {
-                        await FirestoreService.addSubTask(user, data, selectedCell.sectionId, selectedCell.cell.id, suggestion);
-                      }
-
-                      // Reload data to reflect changes
-                      const newData = await FirestoreService.loadUserData(user);
-                      setData(newData);
-
-                      // Update selection to show new tasks
-                      const sec = newData.mandala.surroundingSections.find(s => s.id === selectedCell.sectionId);
-                      const c = sec?.surroundingCells.find(cl => cl.id === selectedCell.cell.id);
-                      if (c) setSelectedCell({ sectionId: selectedCell.sectionId, cell: c });
-
-                    } catch (e: any) {
-                      console.error("AI Brainstorming failed:", e);
-                      // No alert - just fail silently or let the fallback handle it
-                    } finally {
-                      setIsBrainstorming(false);
-                    }
-                  }}
-                  disabled={isBrainstorming}
+                  onClick={handleGenerateSuggestions}
+                  disabled={isBrainstorming || isAddingSuggestions}
                 >
                   {isBrainstorming ? (
-                    <span className="animate-pulse">🦁 Thinking...</span>
+                    <span className="animate-pulse">Thinking...</span>
                   ) : (
-                    <>✨ AI Helper (3 Ideas)</>
+                    <>AI suggestions (3-5)</>
                   )}
                 </Button>
               </div>
+
+              {aiSuggestions.length > 0 && (
+                <div className="rounded-md border border-dashed p-3 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-muted-foreground">AI suggestions</span>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-xs"
+                        onClick={() => handleAddSuggestions(aiSuggestions)}
+                        disabled={isAddingSuggestions}
+                      >
+                        {isAddingSuggestions ? "Adding..." : "Add all"}
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="text-xs"
+                        onClick={() => handleAddSuggestions(selectedSuggestions)}
+                        disabled={isAddingSuggestions || selectedSuggestions.length === 0}
+                      >
+                        Add selected
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    {aiSuggestions.map((suggestion) => {
+                      const checked = selectedSuggestions.includes(suggestion);
+                      return (
+                        <div key={suggestion} className="flex items-center gap-2 rounded-md border px-2 py-1">
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 accent-orange-500"
+                            checked={checked}
+                            onChange={() => toggleSuggestion(suggestion)}
+                          />
+                          <span className="flex-1 text-xs">{suggestion}</span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-xs"
+                            onClick={() => handleAddSuggestions([suggestion])}
+                            disabled={isAddingSuggestions}
+                          >
+                            Add
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Task List */}
@@ -704,7 +990,8 @@ export default function Home() {
         onOpenChange={setIsSettingsDialogOpen}
         obsidianPath={data?.obsidian?.exportPath || '../../Gamified-Mandala-Data'}
         autoSync={data?.obsidian?.autoSync || false}
-        aiConfig={data?.aiConfig || DEFAULT_AI_CLIENT_CONFIG} // aiConfigを追加
+        aiConfig={data?.aiConfig || DEFAULT_AI_CLIENT_CONFIG}
+        notificationConfig={data?.notifications || DEFAULT_NOTIFICATION_CONFIG} // aiConfigを追加
         onSave={handleSaveSettings}
       />
 

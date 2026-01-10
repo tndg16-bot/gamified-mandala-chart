@@ -1,6 +1,6 @@
 import { db } from "./firebase";
 import { doc, getDoc, setDoc, updateDoc, collection, getDocs, addDoc } from "firebase/firestore";
-import { AppData, MandalaCell, Lesson, LessonProgress, ObsidianConfig } from "./types";
+import { AiConfig, AppData, Lesson, LessonProgress, MandalaChart, NotificationConfig, ObsidianConfig } from "./types";
 import { User } from "firebase/auth";
 
 const DEFAULT_DATA: AppData = {
@@ -29,6 +29,16 @@ const DEFAULT_DATA: AppData = {
             }))
         }))
     },
+    tiger: {
+        xp: 0,
+        level: 1,
+        mood: 'Happy',
+        lastLogin: new Date().toISOString(),
+        streakDays: 0,
+        evolutionStage: 'Egg',
+        pokedex: []
+    },
+    xpHistory: [],
     obsidian: {
         exportPath: "../../Gamified-Mandala-Data",
         autoSync: false
@@ -37,6 +47,14 @@ const DEFAULT_DATA: AppData = {
         provider: 'ollama',
         baseUrl: 'http://localhost:11434',
         model: 'gemma3:1b',
+    },
+    notifications: {
+        enabled: false,
+        time: '09:00',
+        frequency: 'daily',
+        weeklyDay: 1,
+        emailEnabled: false,
+        pushEnabled: false
     }
 };
 
@@ -49,7 +67,15 @@ export const FirestoreService = {
         if (snapshot.exists()) {
             const userData = snapshot.data() as AppData;
             // 既存のデータにaiConfigがない場合を考慮してDEFAULT_DATAとマージ
-            return { ...DEFAULT_DATA, ...userData, aiConfig: userData.aiConfig || DEFAULT_DATA.aiConfig };
+            const mergedTiger = { ...DEFAULT_DATA.tiger, ...userData.tiger };
+            return {
+                ...DEFAULT_DATA,
+                ...userData,
+                tiger: mergedTiger,
+                aiConfig: userData.aiConfig || DEFAULT_DATA.aiConfig,
+                xpHistory: userData.xpHistory || DEFAULT_DATA.xpHistory,
+                notifications: userData.notifications || DEFAULT_DATA.notifications
+            };
         } else {
             // Initialize new user data
             await setDoc(userDocRef, DEFAULT_DATA);
@@ -63,8 +89,11 @@ export const FirestoreService = {
         await setDoc(userDocRef, data, { merge: true });
     },
 
-    // Add a subtask (Optimized update)
-    addSubTask: async (user: User, data: AppData, sectionId: string, cellId: string, title: string): Promise<AppData> => {
+    // Add multiple subtasks in one save to avoid overwriting
+    addSubTasks: async (user: User, data: AppData, sectionId: string, cellId: string, titles: string[]): Promise<AppData> => {
+        const trimmedTitles = titles.map(title => title.trim()).filter(Boolean);
+        if (trimmedTitles.length === 0) return data;
+
         // Note: Deep cloning to avoid mutating state directly before saving
         const newData = JSON.parse(JSON.stringify(data)) as AppData;
         const section = newData.mandala.surroundingSections.find(s => s.id === sectionId);
@@ -73,18 +102,24 @@ export const FirestoreService = {
         if (!cell) return data;
 
         if (!cell.subTasks) cell.subTasks = [];
-        cell.subTasks.push({
-            id: `sub-${Date.now()}`,
-            title,
-            completed: false,
-            difficulty: 'B',
-            createdAt: new Date().toISOString()
+        const now = Date.now();
+        trimmedTitles.forEach((title, index) => {
+            cell.subTasks?.push({
+                id: `sub-${now + index}`,
+                title,
+                completed: false,
+                difficulty: 'B',
+                createdAt: new Date().toISOString()
+            });
         });
-
-        // Award tiny XP for planning? Maybe not yet.
 
         await FirestoreService.saveUserData(user, newData);
         return newData;
+    },
+
+    // Add a subtask (Optimized update)
+    addSubTask: async (user: User, data: AppData, sectionId: string, cellId: string, title: string): Promise<AppData> => {
+        return FirestoreService.addSubTasks(user, data, sectionId, cellId, [title]);
     },
 
     // Toggle subtask & Update XP
@@ -102,16 +137,42 @@ export const FirestoreService = {
         if (task) {
             task.completed = !task.completed;
 
+            const today = new Date();
+            const todayKey = today.toISOString().split('T')[0];
+            if (!newData.xpHistory) newData.xpHistory = [];
+            let historyEntry = newData.xpHistory.find(entry => entry.date === todayKey);
+            if (!historyEntry) {
+                historyEntry = { date: todayKey, xp: 0 };
+                newData.xpHistory.push(historyEntry);
+            }
+
             // Gamification: XP for completion (Simple logic: 10xp per task)
             if (task.completed) {
                 newData.tiger.xp += 10;
+                historyEntry.xp += 10;
                 // Level Up Logic (every 100xp)
                 if (Math.floor(newData.tiger.xp / 100) > newData.tiger.level - 1) {
                     newData.tiger.level += 1;
                     // Evolution checkpoints could be handled here or in UI component
                 }
+
+                const lastLogin = newData.tiger.lastLogin ? new Date(newData.tiger.lastLogin) : null;
+                const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+                if (lastLogin) {
+                    const lastStart = new Date(lastLogin.getFullYear(), lastLogin.getMonth(), lastLogin.getDate());
+                    const diffDays = Math.round((todayStart.getTime() - lastStart.getTime()) / (1000 * 60 * 60 * 24));
+                    if (diffDays === 1) {
+                        newData.tiger.streakDays = (newData.tiger.streakDays || 0) + 1;
+                    } else if (diffDays > 1) {
+                        newData.tiger.streakDays = 1;
+                    }
+                } else {
+                    newData.tiger.streakDays = 1;
+                }
+                newData.tiger.lastLogin = today.toISOString();
             } else {
                 newData.tiger.xp = Math.max(0, newData.tiger.xp - 10);
+                historyEntry.xp = Math.max(0, historyEntry.xp - 10);
             }
         }
 
@@ -171,7 +232,16 @@ export const FirestoreService = {
         progress.completed = true;
         progress.completedAt = new Date().toISOString();
 
-        newData.tiger.xp += lesson.xp || 50;
+        const lessonXp = lesson.xp || 50;
+        newData.tiger.xp += lessonXp;
+        const todayKey = new Date().toISOString().split('T')[0];
+        if (!newData.xpHistory) newData.xpHistory = [];
+        let historyEntry = newData.xpHistory.find(entry => entry.date === todayKey);
+        if (!historyEntry) {
+            historyEntry = { date: todayKey, xp: 0 };
+            newData.xpHistory.push(historyEntry);
+        }
+        historyEntry.xp += lessonXp;
         if (Math.floor(newData.tiger.xp / 100) > newData.tiger.level - 1) {
             newData.tiger.level += 1;
         }
@@ -205,6 +275,15 @@ export const FirestoreService = {
         const userDocRef = doc(db, "users", user.uid);
         await updateDoc(userDocRef, {
             aiConfig: aiConfig
+        });
+    },
+
+    async updateNotificationConfig(user: User, notifications: NotificationConfig): Promise<void> {
+        if (!user.uid) throw new Error("User ID missing");
+
+        const userDocRef = doc(db, "users", user.uid);
+        await updateDoc(userDocRef, {
+            notifications
         });
     },
 

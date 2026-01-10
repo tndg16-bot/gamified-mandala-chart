@@ -21,6 +21,7 @@ jest.mock('@/lib/firebase', () => ({
 const mockLoadUserData = jest.fn();
 const mockUpdateObsidianConfig = jest.fn();
 const mockUpdateAiConfig = jest.fn();
+const mockUpdateNotificationConfig = jest.fn();
 const mockGetAllLessons = jest.fn(() => Promise.resolve([]));
 const mockStartLesson = jest.fn();
 const mockCompleteLesson = jest.fn();
@@ -31,6 +32,7 @@ jest.mock('@/lib/firestore_service', () => ({
     loadUserData: (...args: any[]) => mockLoadUserData(...args),
     updateObsidianConfig: (...args: any[]) => mockUpdateObsidianConfig(...args),
     updateAiConfig: (...args: any[]) => mockUpdateAiConfig(...args),
+    updateNotificationConfig: (...args: any[]) => mockUpdateNotificationConfig(...args),
     getAllLessons: (...args: any[]) => mockGetAllLessons(...args),
     startLesson: (...args: any[]) => mockStartLesson(...args),
     completeLesson: (...args: any[]) => mockCompleteLesson(...args),
@@ -86,7 +88,9 @@ describe('Home Page - Settings Integration', () => {
       },
       surroundingSections: [],
     },
-    tiger: { level: 1, xp: 0, mood: "Happy", lastLogin: "", evolutionStage: "Cub", pokedex: [] },
+    tiger: { level: 1, xp: 0, mood: "Happy", lastLogin: "", streakDays: 0, evolutionStage: "Cub", pokedex: [] },
+    xpHistory: [],
+    notifications: { enabled: false, time: '09:00', frequency: 'daily', weeklyDay: 1, emailEnabled: false, pushEnabled: false },
     obsidian: { exportPath: '/initial/obsidian/path', autoSync: false },
     aiConfig: { provider: 'gemini', baseUrl: 'https://gemini.api', model: 'gemini-pro', apiKey: 'initial-key' },
   };
@@ -123,7 +127,7 @@ describe('Home Page - Settings Integration', () => {
     render(<Home />);
     await waitFor(() => expect(mockLoadUserData).toHaveBeenCalled());
 
-    fireEvent.click(screen.getByRole('button', { name: '⚙️' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open settings' }));
     expect(screen.getByText('Settings')).toBeInTheDocument();
 
     fireEvent.click(screen.getByText('Cancel'));
@@ -134,7 +138,7 @@ describe('Home Page - Settings Integration', () => {
     render(<Home />);
     await waitFor(() => expect(mockLoadUserData).toHaveBeenCalled());
 
-    fireEvent.click(screen.getByRole('button', { name: '⚙️' })); // Open settings dialog
+    fireEvent.click(screen.getByRole('button', { name: 'Open settings' })); // Open settings dialog
 
     // Change Obsidian settings
     fireEvent.change(screen.getByTestId('input-obsidian-path'), { target: { value: '/new/obsidian/path' } });
@@ -147,12 +151,14 @@ describe('Home Page - Settings Integration', () => {
 
     const updatedAiConfig = { provider: 'ollama', baseUrl: 'http://new-ollama', model: 'new-ollama-model' };
     const updatedObsidianConfig = { exportPath: '/new/obsidian/path', autoSync: true };
+    const updatedNotifications = { enabled: false, time: '09:00', frequency: 'daily', weeklyDay: 1, emailEnabled: false, pushEnabled: false };
 
     // Mock loadUserData to return data with updated config after save
     mockLoadUserData.mockResolvedValue({
       ...initialAppData,
       obsidian: updatedObsidianConfig,
       aiConfig: updatedAiConfig,
+      notifications: updatedNotifications,
     });
 
     fireEvent.click(screen.getByText('Save Changes'));
@@ -160,6 +166,7 @@ describe('Home Page - Settings Integration', () => {
     await waitFor(() => {
       expect(mockUpdateObsidianConfig).toHaveBeenCalledWith('test-uid', '/new/obsidian/path', true);
       expect(mockUpdateAiConfig).toHaveBeenCalledWith('test-uid', updatedAiConfig);
+      expect(mockUpdateNotificationConfig).toHaveBeenCalledWith('test-uid', updatedNotifications);
       expect(mockAiClientUpdateConfig).toHaveBeenCalledWith(updatedAiConfig);
       expect(localStorage.setItem).toHaveBeenCalledWith('ai_config', JSON.stringify(updatedAiConfig));
       expect(mockLoadUserData).toHaveBeenCalledTimes(2); // Initial load + reload after save
@@ -173,7 +180,7 @@ describe('Home Page - Settings Integration', () => {
     render(<Home />);
     await waitFor(() => expect(mockLoadUserData).toHaveBeenCalled());
 
-    fireEvent.click(screen.getByRole('button', { name: '⚙️' })); // Open settings dialog
+    fireEvent.click(screen.getByRole('button', { name: 'Open settings' })); // Open settings dialog
     fireEvent.click(screen.getByText('Save Changes'));
 
     await waitFor(() => {

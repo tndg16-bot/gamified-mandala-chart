@@ -46,11 +46,11 @@ jest.mock('@/components/ui/label', () => ({
 
 // Mock Select component
 jest.mock('@/components/ui/select', () => ({
-  Select: ({ value, onValueChange, children }: any) => (
+  Select: ({ value, onValueChange, children, ...props }: any) => (
     <select
       value={value}
       onChange={(e) => onValueChange(e.target.value)}
-      data-testid="select-ai-provider"
+      data-testid={props['data-testid'] || 'select-ai-provider'}
     >
       {children}
     </select>
@@ -77,6 +77,14 @@ describe('SettingsDialog', () => {
     baseUrl: 'http://localhost:11434',
     model: 'llama3',
   };
+  const defaultNotifications = {
+    enabled: false,
+    time: '09:00',
+    frequency: 'daily',
+    weeklyDay: 1,
+    emailEnabled: false,
+    pushEnabled: false,
+  };
 
   const mockOnSave = jest.fn();
   const mockOnOpenChange = jest.fn();
@@ -93,6 +101,7 @@ describe('SettingsDialog', () => {
         obsidianPath={defaultObsidianPath}
         autoSync={defaultAutoSync}
         aiConfig={defaultAiConfig}
+        notificationConfig={defaultNotifications}
         onSave={mockOnSave}
       />
     );
@@ -115,6 +124,7 @@ describe('SettingsDialog', () => {
         obsidianPath={defaultObsidianPath}
         autoSync={defaultAutoSync}
         aiConfig={defaultAiConfig}
+        notificationConfig={defaultNotifications}
         onSave={mockOnSave}
       />
     );
@@ -136,6 +146,7 @@ describe('SettingsDialog', () => {
         obsidianPath={defaultObsidianPath}
         autoSync={defaultAutoSync}
         aiConfig={defaultAiConfig}
+        notificationConfig={defaultNotifications}
         onSave={mockOnSave}
       />
     );
@@ -158,6 +169,7 @@ describe('SettingsDialog', () => {
         obsidianPath={defaultObsidianPath}
         autoSync={defaultAutoSync}
         aiConfig={geminiConfig}
+        notificationConfig={defaultNotifications}
         onSave={mockOnSave}
       />
     );
@@ -176,6 +188,7 @@ describe('SettingsDialog', () => {
         obsidianPath={defaultObsidianPath}
         autoSync={defaultAutoSync}
         aiConfig={defaultAiConfig}
+        notificationConfig={defaultNotifications}
         onSave={mockOnSave}
       />
     );
@@ -201,7 +214,8 @@ describe('SettingsDialog', () => {
           baseUrl: 'http://test-ai-url',
           model: 'test-ai-model',
           apiKey: 'test-api-key',
-        }
+        },
+        defaultNotifications
       );
     });
 
@@ -216,6 +230,7 @@ describe('SettingsDialog', () => {
         obsidianPath={defaultObsidianPath}
         autoSync={defaultAutoSync}
         aiConfig={defaultAiConfig}
+        notificationConfig={defaultNotifications}
         onSave={mockOnSave}
       />
     );

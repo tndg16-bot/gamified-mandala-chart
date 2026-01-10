@@ -194,7 +194,7 @@ export class AiClient {
             const data = await response.json();
             if (data.candidates && data.candidates.length > 0 && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts.length > 0) {
                 const text = data.candidates[0].content.parts[0].text;
-                return text.split('\n').filter((line: string) => line.trim().length > 0).slice(0, 3);
+                return text.split('\n').filter((line: string) => line.trim().length > 0).slice(0, 5);
             }
             throw new Error("Gemini APIからの応答が不正です。");
         } finally {
@@ -236,7 +236,7 @@ export class AiClient {
 
             const data = await response.json();
             const text = data.response;
-            return text.split('\n').filter((line: string) => line.trim().length > 0).slice(0, 3);
+            return text.split('\n').filter((line: string) => line.trim().length > 0).slice(0, 5);
         } finally {
             clearTimeout(timeoutId);
         }

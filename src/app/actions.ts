@@ -38,12 +38,22 @@ const INITIAL_DATA: AppData = {
         level: 1,
         mood: 'Happy',
         lastLogin: new Date().toISOString(),
+        streakDays: 0,
         evolutionStage: 'Egg',
         pokedex: []
     },
+    xpHistory: [],
     obsidian: {
         exportPath: '../../Gamified-Mandala-Data',
         autoSync: false
+    },
+    notifications: {
+        enabled: false,
+        time: '09:00',
+        frequency: 'daily',
+        weeklyDay: 1,
+        emailEnabled: false,
+        pushEnabled: false
     }
 };
 
