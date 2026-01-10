@@ -64,6 +64,8 @@ export default function Home() {
   });
   const [isSavingJournal, setIsSavingJournal] = useState(false);
   const [isGeneratingCheckin, setIsGeneratingCheckin] = useState(false);
+  const [isGeneratingReplan, setIsGeneratingReplan] = useState(false);
+  const [isGeneratingJournalSummary, setIsGeneratingJournalSummary] = useState<'weekly' | 'monthly' | null>(null);
 
   const [generatedMandala, setGeneratedMandala] = useState<{ centerGoal: string; surroundingGoals: string[] } | null>(null);
   const [isGeneratingMandala, setIsGeneratingMandala] = useState(false);
@@ -354,6 +356,29 @@ export default function Home() {
   const sortedJournalEntries = [...journalEntries].sort((a, b) => b.date.localeCompare(a.date));
   const coachingLogs = data?.coachingLogs ?? [];
   const sortedCoachingLogs = [...coachingLogs].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const journalSummaries = data?.journalSummaries ?? [];
+  const sortedJournalSummaries = [...journalSummaries].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const latestWeeklySummary = sortedJournalSummaries.find(summary => summary.period === 'weekly');
+  const latestMonthlySummary = sortedJournalSummaries.find(summary => summary.period === 'monthly');
+  const xpSeries7 = buildXpSeries(7);
+  const weeklyXpTotal = xpSeries7.reduce((sum, entry) => sum + entry.xp, 0);
+  const isStagnant = weeklyXpTotal <= 0;
+  const getEntriesSince = (days: number) => {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - days + 1);
+    return journalEntries.filter(entry => new Date(entry.date) >= cutoff);
+  };
+  const weeklyEntries = getEntriesSince(7);
+  const monthlyEntries = getEntriesSince(30);
+  const entryTextLength = (entry: { achievements: string; challenges: string; goals: string }) => {
+    return (entry.achievements + entry.challenges + entry.goals).replace(/\s/g, '').length;
+  };
+  const weeklyAvgLength = weeklyEntries.length > 0
+    ? Math.round(weeklyEntries.reduce((sum, entry) => sum + entryTextLength(entry), 0) / weeklyEntries.length)
+    : 0;
+  const monthlyAvgLength = monthlyEntries.length > 0
+    ? Math.round(monthlyEntries.reduce((sum, entry) => sum + entryTextLength(entry), 0) / monthlyEntries.length)
+    : 0;
 
   const badgeDefinitions = [
     {
@@ -474,6 +499,8 @@ export default function Home() {
         `- Streak days: ${streakDays}`,
         `- Level: ${data.tiger.level}`,
         `- XP: ${data.tiger.xp}`,
+        `- Stagnation (last 7 days): ${isStagnant ? 'yes' : 'no'}`,
+        `- Source: ${source}`,
       ].join('\n');
 
       const summary = await aiClient.chat([{ role: 'user', content: prompt }]);
@@ -482,6 +509,7 @@ export default function Home() {
         createdAt: new Date().toISOString(),
         summary: summary.trim() || 'No response.',
         prompt,
+        kind: 'checkin' as const,
       };
       const newData = { ...data, coachingLogs: [entry, ...coachingLogs] };
       await FirestoreService.saveUserData(user, newData);
@@ -496,7 +524,43 @@ export default function Home() {
     } finally {
       setIsGeneratingCheckin(false);
     }
-  }, [user, data, isGeneratingCheckin, completionRate, doneTasks.length, totalTasks, streakDays, data?.tiger.level, data?.tiger.xp, coachingLogs]);
+  }, [user, data, isGeneratingCheckin, completionRate, doneTasks.length, totalTasks, streakDays, isStagnant, data?.tiger.level, data?.tiger.xp, coachingLogs]);
+
+  const handleGenerateReplan = useCallback(async () => {
+    if (!user || !data) return;
+    if (isGeneratingReplan) return;
+    setIsGeneratingReplan(true);
+    try {
+      const prompt = [
+        'You are a supportive coach. The user is stuck this week.',
+        'Provide three alternative small steps to restart momentum.',
+        'Format: bullet list.',
+        '',
+        `Progress snapshot:`,
+        `- Completion rate: ${completionRate}%`,
+        `- Completed tasks: ${doneTasks.length}/${totalTasks}`,
+        `- Streak days: ${streakDays}`,
+        `- XP (last 7 days): ${weeklyXpTotal}`,
+      ].join('\n');
+
+      const summary = await aiClient.chat([{ role: 'user', content: prompt }]);
+      const entry = {
+        id: `replan-${Date.now()}`,
+        createdAt: new Date().toISOString(),
+        summary: summary.trim() || 'No response.',
+        prompt,
+        kind: 'replan' as const,
+      };
+      const newData = { ...data, coachingLogs: [entry, ...coachingLogs] };
+      await FirestoreService.saveUserData(user, newData);
+      setData(newData);
+    } catch (error) {
+      console.error('Failed to generate replan:', error);
+      alert('Failed to generate replan. Please try again.');
+    } finally {
+      setIsGeneratingReplan(false);
+    }
+  }, [user, data, isGeneratingReplan, completionRate, doneTasks.length, totalTasks, streakDays, weeklyXpTotal, coachingLogs]);
 
   useEffect(() => {
     if (!user || !data) return;
@@ -506,6 +570,49 @@ export default function Home() {
     if (lastKey === weekKey) return;
     handleGenerateCheckin('auto');
   }, [user, data, handleGenerateCheckin]);
+
+  const handleGenerateJournalSummary = useCallback(async (period: 'weekly' | 'monthly') => {
+    if (!user || !data) return;
+    if (isGeneratingJournalSummary) return;
+    try {
+      const entries = period === 'weekly' ? weeklyEntries : monthlyEntries;
+      if (entries.length === 0) {
+        alert('No journal entries in this period yet.');
+        return;
+      }
+      setIsGeneratingJournalSummary(period);
+      const entryLines = entries.map(entry => {
+        return [
+          `Date: ${entry.date}`,
+          `Wins: ${entry.achievements}`,
+          `Challenges: ${entry.challenges}`,
+          `Tomorrow: ${entry.goals}`,
+        ].join('\n');
+      }).join('\n\n');
+      const prompt = [
+        'あなたは振り返りのコーチです。以下の記録から、短い要約と気づきを作ってください。',
+        '出力は日本語で、3-5行程度。',
+        '',
+        entryLines,
+      ].join('\n');
+      const summary = await aiClient.chat([{ role: 'user', content: prompt }]);
+      const entry = {
+        id: `summary-${period}-${Date.now()}`,
+        period,
+        createdAt: new Date().toISOString(),
+        summary: summary.trim() || 'No response.',
+        entryDates: entries.map(item => item.date),
+      };
+      const newData = { ...data, journalSummaries: [entry, ...journalSummaries] };
+      await FirestoreService.saveUserData(user, newData);
+      setData(newData);
+    } catch (error) {
+      console.error('Failed to generate journal summary:', error);
+      alert('Failed to generate journal summary. Please try again.');
+    } finally {
+      setIsGeneratingJournalSummary(null);
+    }
+  }, [user, data, isGeneratingJournalSummary, weeklyEntries, monthlyEntries, journalSummaries]);
 
   const handleSaveJournalEntry = async () => {
     if (!user || !data) return;
@@ -926,8 +1033,9 @@ export default function Home() {
         </TabsContent>
 
         <TabsContent value="journal" className="mt-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <Card className="glass-panel">
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <Card className="glass-panel">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm">Daily reflection</CardTitle>
               </CardHeader>
@@ -963,7 +1071,71 @@ export default function Home() {
                   {isSavingJournal ? 'Saving...' : 'Save reflection'}
                 </Button>
               </CardContent>
-            </Card>
+              </Card>
+
+              <Card className="glass-panel">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm">AI summary</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4 text-xs text-white/70">
+                  <div className="space-y-2">
+                    <div className="text-white/80">Trends snapshot</div>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="rounded-md border border-white/10 bg-white/5 p-2">
+                        <div className="text-white/60">Entries (7d)</div>
+                        <div className="text-sm text-white">{weeklyEntries.length}</div>
+                      </div>
+                      <div className="rounded-md border border-white/10 bg-white/5 p-2">
+                        <div className="text-white/60">Avg length (7d)</div>
+                        <div className="text-sm text-white">{weeklyAvgLength}</div>
+                      </div>
+                      <div className="rounded-md border border-white/10 bg-white/5 p-2">
+                        <div className="text-white/60">Entries (30d)</div>
+                        <div className="text-sm text-white">{monthlyEntries.length}</div>
+                      </div>
+                      <div className="rounded-md border border-white/10 bg-white/5 p-2">
+                        <div className="text-white/60">Avg length (30d)</div>
+                        <div className="text-sm text-white">{monthlyAvgLength}</div>
+                      </div>
+                    </div>
+                  </div>
+                  <Separator className="bg-white/10" />
+                  <div className="space-y-2">
+                    <div className="text-white/80">Weekly summary</div>
+                    {latestWeeklySummary ? (
+                      <div className="rounded-md border border-white/10 bg-white/5 p-3 text-xs text-white/80 whitespace-pre-wrap">
+                        {latestWeeklySummary.summary}
+                      </div>
+                    ) : (
+                      <div className="text-xs text-white/60">No weekly summary yet.</div>
+                    )}
+                    <Button
+                      onClick={() => handleGenerateJournalSummary('weekly')}
+                      disabled={isGeneratingJournalSummary !== null}
+                    >
+                      {isGeneratingJournalSummary === 'weekly' ? 'Generating...' : 'Generate weekly summary'}
+                    </Button>
+                  </div>
+                  <Separator className="bg-white/10" />
+                  <div className="space-y-2">
+                    <div className="text-white/80">Monthly summary</div>
+                    {latestMonthlySummary ? (
+                      <div className="rounded-md border border-white/10 bg-white/5 p-3 text-xs text-white/80 whitespace-pre-wrap">
+                        {latestMonthlySummary.summary}
+                      </div>
+                    ) : (
+                      <div className="text-xs text-white/60">No monthly summary yet.</div>
+                    )}
+                    <Button
+                      onClick={() => handleGenerateJournalSummary('monthly')}
+                      disabled={isGeneratingJournalSummary !== null}
+                    >
+                      {isGeneratingJournalSummary === 'monthly' ? 'Generating...' : 'Generate monthly summary'}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
 
             <Card className="glass-panel">
               <CardHeader className="pb-2">
@@ -1006,25 +1178,39 @@ export default function Home() {
 
             <Card className="glass-panel">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm">Coaching history</CardTitle>
+                <CardTitle className="text-sm">Stuck reset</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
-                {sortedCoachingLogs.length > 0 ? (
-                  sortedCoachingLogs.map((entry) => (
-                    <div key={entry.id} className="rounded-md border border-white/10 bg-white/5 p-3 text-xs text-white/80 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold">{new Date(entry.createdAt).toLocaleString()}</span>
-                        <Badge variant="secondary" className="text-[10px]">Check-in</Badge>
-                      </div>
-                      <div className="whitespace-pre-wrap">{entry.summary}</div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="text-xs text-white/60">No check-ins yet.</div>
-                )}
+              <CardContent className="space-y-4 text-xs text-white/70">
+                <div>Weekly XP is {weeklyXpTotal}. {isStagnant ? 'Let’s reset with small alternatives.' : 'Keep the momentum going.'}</div>
+                <Button onClick={handleGenerateReplan} disabled={isGeneratingReplan || !isStagnant}>
+                  {isGeneratingReplan ? 'Generating...' : 'Generate alternative steps'}
+                </Button>
               </CardContent>
             </Card>
           </div>
+
+          <Card className="glass-panel mt-4">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Coaching history</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {sortedCoachingLogs.length > 0 ? (
+                sortedCoachingLogs.map((entry) => (
+                  <div key={entry.id} className="rounded-md border border-white/10 bg-white/5 p-3 text-xs text-white/80 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold">{new Date(entry.createdAt).toLocaleString()}</span>
+                      <Badge variant={entry.kind === 'replan' ? 'outline' : 'secondary'} className="text-[10px]">
+                        {entry.kind === 'replan' ? 'Replan' : 'Check-in'}
+                      </Badge>
+                    </div>
+                    <div className="whitespace-pre-wrap">{entry.summary}</div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-xs text-white/60">No check-ins yet.</div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="mandala" className="mt-4">

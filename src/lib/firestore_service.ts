@@ -58,7 +58,8 @@ const DEFAULT_DATA: AppData = {
     },
     pushTokens: [],
     journalEntries: [],
-    coachingLogs: []
+    coachingLogs: [],
+    journalSummaries: []
 };
 
 export const FirestoreService = {
@@ -80,7 +81,8 @@ export const FirestoreService = {
                 notifications: userData.notifications || DEFAULT_DATA.notifications,
                 pushTokens: userData.pushTokens || DEFAULT_DATA.pushTokens,
                 journalEntries: userData.journalEntries || DEFAULT_DATA.journalEntries,
-                coachingLogs: userData.coachingLogs || DEFAULT_DATA.coachingLogs
+                coachingLogs: userData.coachingLogs || DEFAULT_DATA.coachingLogs,
+                journalSummaries: userData.journalSummaries || DEFAULT_DATA.journalSummaries
             };
         } else {
             // Initialize new user data

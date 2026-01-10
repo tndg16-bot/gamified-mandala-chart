@@ -61,6 +61,7 @@ export type CoachingLog = {
     createdAt: string;
     summary: string;
     prompt: string;
+    kind?: 'checkin' | 'replan';
 };
 
 export type JournalEntry = {
@@ -70,6 +71,14 @@ export type JournalEntry = {
     achievements: string;
     challenges: string;
     goals: string;
+};
+
+export type JournalSummary = {
+    id: string;
+    period: 'weekly' | 'monthly';
+    createdAt: string;
+    summary: string;
+    entryDates: string[];
 };
 
 export type AppData = {
@@ -83,6 +92,7 @@ export type AppData = {
     pushTokens?: string[];
     journalEntries?: JournalEntry[];
     coachingLogs?: CoachingLog[];
+    journalSummaries?: JournalSummary[];
 };
 
 export type ChatMessage = {
