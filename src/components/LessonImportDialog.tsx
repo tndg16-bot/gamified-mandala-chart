@@ -5,7 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { parseLessonsFromMarkdown, convertParsedLessonsToLessons, ParsedLesson } from "@/lib/lesson_parser";
 import { Lesson } from "@/lib/types";
-import { FileText, CheckCircle, AlertCircle, Upload } from "lucide-react";
+import { FileText, CheckCircle, AlertCircle, Upload, Download } from "lucide-react";
 
 interface LessonImportDialogProps {
     open: boolean;
@@ -107,6 +107,20 @@ export function LessonImportDialog({ open, onOpenChange, onImport }: LessonImpor
                                 </span>
                             </Button>
                         </label>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            asChild
+                        >
+                            <a
+                                href="/lesson_template.md"
+                                download="lesson_template.md"
+                                className="flex items-center gap-2"
+                            >
+                                <Download className="w-4 h-4" />
+                                Download Template
+                            </a>
+                        </Button>
                         {markdown && (
                             <Button variant="ghost" size="sm" onClick={handleClear}>
                                 Clear
