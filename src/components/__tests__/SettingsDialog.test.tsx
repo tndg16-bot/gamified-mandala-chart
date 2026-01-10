@@ -85,6 +85,7 @@ describe('SettingsDialog', () => {
     emailEnabled: false,
     pushEnabled: false,
   };
+  const defaultRole = 'client';
 
   const mockOnSave = jest.fn();
   const mockOnOpenChange = jest.fn();
@@ -102,6 +103,7 @@ describe('SettingsDialog', () => {
         autoSync={defaultAutoSync}
         aiConfig={defaultAiConfig}
         notificationConfig={defaultNotifications}
+        role={defaultRole}
         onSave={mockOnSave}
       />
     );
@@ -125,6 +127,7 @@ describe('SettingsDialog', () => {
         autoSync={defaultAutoSync}
         aiConfig={defaultAiConfig}
         notificationConfig={defaultNotifications}
+        role={defaultRole}
         onSave={mockOnSave}
       />
     );
@@ -147,6 +150,7 @@ describe('SettingsDialog', () => {
         autoSync={defaultAutoSync}
         aiConfig={defaultAiConfig}
         notificationConfig={defaultNotifications}
+        role={defaultRole}
         onSave={mockOnSave}
       />
     );
@@ -170,6 +174,7 @@ describe('SettingsDialog', () => {
         autoSync={defaultAutoSync}
         aiConfig={geminiConfig}
         notificationConfig={defaultNotifications}
+        role={defaultRole}
         onSave={mockOnSave}
       />
     );
@@ -189,6 +194,7 @@ describe('SettingsDialog', () => {
         autoSync={defaultAutoSync}
         aiConfig={defaultAiConfig}
         notificationConfig={defaultNotifications}
+        role={defaultRole}
         onSave={mockOnSave}
       />
     );
@@ -215,7 +221,8 @@ describe('SettingsDialog', () => {
           model: 'test-ai-model',
           apiKey: 'test-api-key',
         },
-        defaultNotifications
+        defaultNotifications,
+        defaultRole
       );
     });
 
@@ -231,6 +238,7 @@ describe('SettingsDialog', () => {
         autoSync={defaultAutoSync}
         aiConfig={defaultAiConfig}
         notificationConfig={defaultNotifications}
+        role={defaultRole}
         onSave={mockOnSave}
       />
     );

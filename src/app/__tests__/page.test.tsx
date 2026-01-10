@@ -12,6 +12,7 @@ let mockSettingsValues = {
   autoSync: false,
   aiConfig: { provider: 'gemini', baseUrl: 'https://gemini.api', model: 'gemini-pro', apiKey: 'initial-key' },
   notifications: { enabled: false, time: '09:00', frequency: 'daily', weeklyDay: 1, emailEnabled: false, pushEnabled: false },
+  role: 'client',
 };
 
 jest.mock('@/components/SettingsDialog', () => ({
@@ -25,7 +26,8 @@ jest.mock('@/components/SettingsDialog', () => ({
               mockSettingsValues.obsidianPath,
               mockSettingsValues.autoSync,
               mockSettingsValues.aiConfig,
-              mockSettingsValues.notifications
+              mockSettingsValues.notifications,
+              mockSettingsValues.role
             );
           } catch (error) {
             console.error("Failed to save settings:", error);
@@ -56,6 +58,7 @@ const mockLoadUserData = jest.fn();
 const mockUpdateObsidianConfig = jest.fn();
 const mockUpdateAiConfig = jest.fn();
 const mockUpdateNotificationConfig = jest.fn();
+const mockUpdateUserRole = jest.fn();
 const mockAddPushToken = jest.fn();
 const mockGetAllLessons = jest.fn(() => Promise.resolve([]));
 const mockStartLesson = jest.fn();
@@ -68,6 +71,7 @@ jest.mock('@/lib/firestore_service', () => ({
     updateObsidianConfig: (...args: any[]) => mockUpdateObsidianConfig(...args),
     updateAiConfig: (...args: any[]) => mockUpdateAiConfig(...args),
     updateNotificationConfig: (...args: any[]) => mockUpdateNotificationConfig(...args),
+    updateUserRole: (...args: any[]) => mockUpdateUserRole(...args),
     addPushToken: (...args: any[]) => mockAddPushToken(...args),
     getAllLessons: (...args: any[]) => mockGetAllLessons(...args),
     startLesson: (...args: any[]) => mockStartLesson(...args),
@@ -129,6 +133,7 @@ describe('Home Page - Settings Integration', () => {
     notifications: { enabled: false, time: '09:00', frequency: 'daily', weeklyDay: 1, emailEnabled: false, pushEnabled: false },
     obsidian: { exportPath: '/initial/obsidian/path', autoSync: false },
     aiConfig: { provider: 'gemini', baseUrl: 'https://gemini.api', model: 'gemini-pro', apiKey: 'initial-key' },
+    role: 'client',
   };
 
   beforeAll(() => { // beforeEach から beforeAll に変更
@@ -137,6 +142,8 @@ describe('Home Page - Settings Integration', () => {
       user: { uid: 'test-uid', displayName: 'Test User' },
       loading: false,
       signInWithGoogle: jest.fn(),
+      signInWithEmail: jest.fn(),
+      signUpWithEmail: jest.fn(),
       logout: jest.fn(),
     });
   });
@@ -148,6 +155,7 @@ describe('Home Page - Settings Integration', () => {
       autoSync: false,
       aiConfig: initialAppData.aiConfig,
       notifications: initialAppData.notifications,
+      role: 'client',
     };
     mockLoadUserData.mockResolvedValue(initialAppData);
     mockAiClientGetConfig.mockReturnValue(initialAppData.aiConfig);
@@ -187,12 +195,14 @@ describe('Home Page - Settings Integration', () => {
     const updatedAiConfig = { provider: 'ollama', baseUrl: 'http://new-ollama', model: 'new-ollama-model' };
     const updatedObsidianConfig = { exportPath: '/new/obsidian/path', autoSync: true };
     const updatedNotifications = { enabled: false, time: '09:00', frequency: 'daily', weeklyDay: 1, emailEnabled: false, pushEnabled: false };
+    const updatedRole = 'coach';
 
     mockSettingsValues = {
       obsidianPath: updatedObsidianConfig.exportPath,
       autoSync: updatedObsidianConfig.autoSync,
       aiConfig: updatedAiConfig,
       notifications: updatedNotifications,
+      role: updatedRole,
     };
 
     // Mock loadUserData to return data with updated config after save
@@ -201,6 +211,7 @@ describe('Home Page - Settings Integration', () => {
       obsidian: updatedObsidianConfig,
       aiConfig: updatedAiConfig,
       notifications: updatedNotifications,
+      role: updatedRole,
     });
 
     fireEvent.click(screen.getByText('Save Changes'));
@@ -209,6 +220,7 @@ describe('Home Page - Settings Integration', () => {
       expect(mockUpdateObsidianConfig).toHaveBeenCalledWith({ uid: 'test-uid', displayName: 'Test User' }, '/new/obsidian/path', true);
       expect(mockUpdateAiConfig).toHaveBeenCalledWith({ uid: 'test-uid', displayName: 'Test User' }, updatedAiConfig);
       expect(mockUpdateNotificationConfig).toHaveBeenCalledWith({ uid: 'test-uid', displayName: 'Test User' }, updatedNotifications);
+      expect(mockUpdateUserRole).toHaveBeenCalledWith({ uid: 'test-uid', displayName: 'Test User' }, updatedRole);
       expect(mockAiClientUpdateConfig).toHaveBeenCalled();
       expect(mockLoadUserData.mock.calls.length).toBeGreaterThanOrEqual(2);
       expect(mockAlert).toHaveBeenCalled();

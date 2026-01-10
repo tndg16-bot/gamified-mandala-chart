@@ -327,6 +327,12 @@ export const FirestoreService = {
         });
     },
 
+    async updateUserRole(user: User, role: AppData["role"]): Promise<void> {
+        if (!user.uid) throw new Error("User ID missing");
+        const userDocRef = doc(db, "users", user.uid);
+        await updateDoc(userDocRef, { role });
+    },
+
     async addPushToken(user: User, token: string): Promise<void> {
         if (!user.uid) throw new Error("User ID missing");
         if (!token) return;

@@ -996,12 +996,15 @@ export default function Home() {
     }
   };
 
-  const handleSaveSettings = async (exportPath: string, autoSync: boolean, aiConfig: AiConfig, notifications: NotificationConfig) => {
+  const handleSaveSettings = async (exportPath: string, autoSync: boolean, aiConfig: AiConfig, notifications: NotificationConfig, role: AppData["role"]) => {
     if (!user) return;
     try {
       await FirestoreService.updateObsidianConfig(user, exportPath, autoSync);
       await FirestoreService.updateAiConfig(user, aiConfig);
       await FirestoreService.updateNotificationConfig(user, notifications);
+      if (role) {
+        await FirestoreService.updateUserRole(user, role);
+      }
 
       if (notifications.pushEnabled) {
         try {
@@ -2070,6 +2073,7 @@ export default function Home() {
         autoSync={data?.obsidian?.autoSync || false}
         aiConfig={data?.aiConfig || DEFAULT_AI_CLIENT_CONFIG}
         notificationConfig={data?.notifications || DEFAULT_NOTIFICATION_CONFIG} // aiConfigを追加
+        role={data?.role || 'client'}
         onSave={handleSaveSettings}
       />
 

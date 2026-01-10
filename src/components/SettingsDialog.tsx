@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { AiConfig, AiProvider, NotificationConfig, NotificationFrequency } from '@/lib/types'; // types.tsからインポート
+import { AiConfig, AiProvider, NotificationConfig, NotificationFrequency, UserRole } from '@/lib/types'; // types.tsからインポート
 
 const DEFAULT_AI_CONFIG: AiConfig = {
     provider: 'ollama',
@@ -21,20 +21,22 @@ interface SettingsDialogProps {
     autoSync: boolean;
     aiConfig: AiConfig; // AiConfigを追加
     notificationConfig: NotificationConfig;
-    onSave: (path: string, autoSync: boolean, aiConfig: AiConfig, notifications: NotificationConfig) => Promise<void>; // onSaveのシグネチャ変更
+    role: UserRole;
+    onSave: (path: string, autoSync: boolean, aiConfig: AiConfig, notifications: NotificationConfig, role: UserRole) => Promise<void>; // onSaveのシグネチャ変更
 }
 
-export function SettingsDialog({ open, onOpenChange, obsidianPath, autoSync, aiConfig, notificationConfig, onSave }: SettingsDialogProps) {
+export function SettingsDialog({ open, onOpenChange, obsidianPath, autoSync, aiConfig, notificationConfig, role, onSave }: SettingsDialogProps) {
     const [localPath, setLocalPath] = useState(obsidianPath);
     const [localAutoSync, setLocalAutoSync] = useState(autoSync);
     const [localAiConfig, setLocalAiConfig] = useState<AiConfig>(aiConfig); // localAiConfigを追加
     const [localNotificationConfig, setLocalNotificationConfig] = useState<NotificationConfig>(notificationConfig);
+    const [localRole, setLocalRole] = useState<UserRole>(role);
     const [saving, setSaving] = useState(false);
 
     const handleSave = async () => {
         setSaving(true);
         try {
-            await onSave(localPath, localAutoSync, localAiConfig, localNotificationConfig); // localAiConfigを渡す
+            await onSave(localPath, localAutoSync, localAiConfig, localNotificationConfig, localRole); // localAiConfigを渡す
             onOpenChange(false);
         } catch (error) {
             console.error('Failed to save settings:', error);
@@ -163,6 +165,27 @@ export function SettingsDialog({ open, onOpenChange, obsidianPath, autoSync, aiC
                                 />
                             </div>
                         )}
+                    </div>
+                    <div className="space-y-2 mt-6">
+                        <h4 className="font-semibold text-lg border-b pb-2">Role</h4>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="user-role" className="text-right">
+                                Role
+                            </Label>
+                            <Select
+                                value={localRole}
+                                onValueChange={(value: UserRole) => setLocalRole(value)}
+                                data-testid="select-user-role"
+                            >
+                                <SelectTrigger className="col-span-3" id="user-role">
+                                    <SelectValue placeholder="Select role" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="client">Client</SelectItem>
+                                    <SelectItem value="coach">Coach</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
                     </div>
                     {/* Notification Settings */}
                     <div className="space-y-2 mt-6">
