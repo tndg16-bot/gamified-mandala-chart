@@ -20,6 +20,7 @@ import { FirestoreService } from "@/lib/firestore_service";
 import { ChatUI } from "@/components/ChatUI";
 import { LessonList } from "@/components/LessonList";
 import { LessonDetail } from "@/components/LessonDetail";
+import { LessonImportDialog } from "@/components/LessonImportDialog";
 import { Lesson } from "@/lib/types";
 
 export default function Home() {
@@ -29,6 +30,7 @@ export default function Home() {
   const [isBrainstorming, setIsBrainstorming] = useState(false);
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
 
   // Load AI config from localStorage
   useEffect(() => {
@@ -199,10 +201,17 @@ export default function Home() {
     setData(newData);
   };
 
-  const handleCompleteLesson = async () => {
-    if (!selectedLesson || !user || !data) return;
-    const newData = await FirestoreService.completeLesson(user, data, selectedLesson.id);
+  const handleCompleteLesson = async (lesson: Lesson) => {
+    if (!user || !data) return;
+    const newData = await FirestoreService.completeLesson(user, data, lesson);
     setData(newData);
+  };
+
+  const handleImportLessons = async (importedLessons: Lesson[]) => {
+    if (!user) return;
+    await FirestoreService.importLessons(importedLessons);
+    const updatedLessons = await FirestoreService.getAllLessons();
+    setLessons(updatedLessons);
   };
 
   if (loading || !data) return <div className="flex h-screen items-center justify-center">Loading Tiger...</div>;
@@ -228,7 +237,7 @@ export default function Home() {
           </div>
           <Separator orientation="vertical" className="hidden md:block h-6" />
           <div className="flex gap-2 w-full md:w-auto print:hidden">
-            <Button variant="outline" className="flex-1 md:flex-none" onClick={handleImport}>📂 Import</Button>
+            <Button variant="outline" className="flex-1 md:flex-none" onClick={() => setIsImportDialogOpen(true)}>📂 Import</Button>
             <Button variant={copied ? "default" : "secondary"} className="flex-1 md:flex-none" onClick={handleExportMarkdown}>
               {copied ? "✅ Copied!" : "📤 MD"}
             </Button>
@@ -498,8 +507,15 @@ export default function Home() {
               </div>
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
+          </DialogContent>
+        </Dialog>
+
+      {/* Lesson Import Dialog */}
+      <LessonImportDialog
+        open={isImportDialogOpen}
+        onOpenChange={setIsImportDialogOpen}
+        onImport={handleImportLessons}
+      />
 
     </div>
   );

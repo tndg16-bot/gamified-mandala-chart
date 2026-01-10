@@ -1,5 +1,5 @@
 import { db } from "./firebase";
-import { doc, getDoc, setDoc, updateDoc, collection, getDocs } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc, collection, getDocs, addDoc } from "firebase/firestore";
 import { AppData, MandalaCell, Lesson, LessonProgress } from "./types";
 import { User } from "firebase/auth";
 
@@ -157,24 +157,32 @@ export const FirestoreService = {
         return newData;
     },
 
-    async completeLesson(user: User, currentData: AppData, lessonId: string): Promise<AppData> {
+    async completeLesson(user: User, currentData: AppData, lesson: Lesson): Promise<AppData> {
         if (!user.uid) throw new Error("User ID missing");
 
         const newData = JSON.parse(JSON.stringify(currentData)) as AppData;
         if (!newData.lessonProgress) return currentData;
 
-        const progress = newData.lessonProgress.find(lp => lp.lessonId === lessonId);
+        const progress = newData.lessonProgress.find(lp => lp.lessonId === lesson.id);
         if (!progress || progress.completed) return currentData;
 
         progress.completed = true;
         progress.completedAt = new Date().toISOString();
 
-        newData.tiger.xp += 50;
+        newData.tiger.xp += lesson.xp || 50;
         if (Math.floor(newData.tiger.xp / 100) > newData.tiger.level - 1) {
             newData.tiger.level += 1;
         }
 
         await this.saveUserData(user, newData);
         return newData;
+    },
+
+    async importLessons(lessons: Lesson[]): Promise<void> {
+        const lessonsRef = collection(db, "lessons");
+        
+        for (const lesson of lessons) {
+            await addDoc(lessonsRef, lesson);
+        }
     }
 };

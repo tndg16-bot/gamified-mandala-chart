@@ -59,6 +59,7 @@ export type Lesson = {
     content: string;
     order: number;
     requiredLevel: number;
+    xp: number;
 };
 
 export type LessonProgress = {

@@ -9,7 +9,7 @@ interface LessonDetailProps {
     lesson: Lesson
     progress: LessonProgress | undefined
     onBack: () => void
-    onCompleteLesson: () => void
+    onCompleteLesson: (lesson: Lesson) => void
 }
 
 export function LessonDetail({ lesson, progress, onBack, onCompleteLesson }: LessonDetailProps) {
@@ -74,16 +74,16 @@ export function LessonDetail({ lesson, progress, onBack, onCompleteLesson }: Les
                                 <CheckCircle2 className="w-6 h-6" />
                                 <div>
                                     <div className="font-semibold">Lesson Completed!</div>
-                                    <div className="text-sm text-green-600">You earned 50 XP</div>
+                                    <div className="text-sm text-green-600">You earned {lesson.xp} XP</div>
                                 </div>
                             </div>
                         )}
 
                         {!isCompleted && isStarted && (
                             <div className="flex justify-end">
-                                <Button onClick={onCompleteLesson} size="lg" className="gap-2">
+                                <Button onClick={() => onCompleteLesson(lesson)} size="lg" className="gap-2">
                                     <Trophy className="w-5 h-5" />
-                                    Complete Lesson (+50 XP)
+                                    Complete Lesson (+{lesson.xp} XP)
                                 </Button>
                             </div>
                         )}
