@@ -331,6 +331,24 @@ export default function Home() {
     }
   };
 
+  const computeMandalaProgress = (mandala: MandalaChart) => {
+    let doneCount = 0;
+    let totalCount = 0;
+    mandala.surroundingSections.forEach(section => {
+      section.surroundingCells.forEach(cell => {
+        if (cell.subTasks && cell.subTasks.length > 0) {
+          totalCount += cell.subTasks.length;
+          doneCount += cell.subTasks.filter(task => task.completed).length;
+        } else {
+          totalCount += 1;
+          if (cell.completed) doneCount += 1;
+        }
+      });
+    });
+    const completionRate = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0;
+    return { doneCount, totalCount, completionRate };
+  };
+
   // Helper to get ALL Level 3 SubTasks for Kanban
   const getAllSubTasks = () => {
     if (!data) return [];
@@ -386,6 +404,7 @@ export default function Home() {
   const latestWeeklySummary = sortedJournalSummaries.find(summary => summary.period === 'weekly');
   const latestMonthlySummary = sortedJournalSummaries.find(summary => summary.period === 'monthly');
   const activeTeam = teams.find(team => team.id === activeTeamId) ?? null;
+  const activeTeamProgress = activeTeam ? computeMandalaProgress(activeTeam.sharedMandala) : null;
   const xpSeries7 = buildXpSeries(7);
   const weeklyXpTotal = xpSeries7.reduce((sum, entry) => sum + entry.xp, 0);
   const isStagnant = weeklyXpTotal <= 0;
@@ -1404,6 +1423,29 @@ export default function Home() {
                     <Button onClick={handleSyncTeamMandala} disabled={isSyncingTeamMandala}>
                       {isSyncingTeamMandala ? 'Syncing...' : 'Sync my mandala'}
                     </Button>
+                  </div>
+                  {activeTeamProgress && (
+                    <div className="rounded-md border border-white/10 bg-white/5 p-3 space-y-2">
+                      <div className="flex items-center justify-between text-[10px] text-white/70">
+                        <span>Team progress</span>
+                        <span>{activeTeamProgress.doneCount}/{activeTeamProgress.totalCount} ({activeTeamProgress.completionRate}%)</span>
+                      </div>
+                      <Progress value={activeTeamProgress.completionRate} className="h-2" />
+                    </div>
+                  )}
+                  <div className="rounded-md border border-white/10 bg-white/5 p-3 space-y-2">
+                    <div className="text-[10px] text-white/60">Members</div>
+                    <div className="flex flex-wrap gap-2 text-[10px] text-white/70">
+                      {activeTeam.memberIds?.length ? (
+                        activeTeam.memberIds.map(memberId => (
+                          <span key={memberId} className="rounded-full border border-white/10 bg-white/10 px-2 py-1">
+                            {memberId}
+                          </span>
+                        ))
+                      ) : (
+                        <span>No members yet.</span>
+                      )}
+                    </div>
                   </div>
                   <div className="rounded-md border border-white/10 bg-white/5 p-3 space-y-2">
                     <div className="text-[10px] text-white/60">Shared mandala</div>
