@@ -57,7 +57,8 @@ const DEFAULT_DATA: AppData = {
         pushEnabled: false
     },
     pushTokens: [],
-    journalEntries: []
+    journalEntries: [],
+    coachingLogs: []
 };
 
 export const FirestoreService = {
@@ -78,7 +79,8 @@ export const FirestoreService = {
                 xpHistory: userData.xpHistory || DEFAULT_DATA.xpHistory,
                 notifications: userData.notifications || DEFAULT_DATA.notifications,
                 pushTokens: userData.pushTokens || DEFAULT_DATA.pushTokens,
-                journalEntries: userData.journalEntries || DEFAULT_DATA.journalEntries
+                journalEntries: userData.journalEntries || DEFAULT_DATA.journalEntries,
+                coachingLogs: userData.coachingLogs || DEFAULT_DATA.coachingLogs
             };
         } else {
             // Initialize new user data

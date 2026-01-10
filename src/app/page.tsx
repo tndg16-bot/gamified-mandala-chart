@@ -56,6 +56,7 @@ export default function Home() {
     goals: '',
   });
   const [isSavingJournal, setIsSavingJournal] = useState(false);
+  const [isGeneratingCheckin, setIsGeneratingCheckin] = useState(false);
 
   const [generatedMandala, setGeneratedMandala] = useState<{ centerGoal: string; surroundingGoals: string[] } | null>(null);
   const [isGeneratingMandala, setIsGeneratingMandala] = useState(false);
@@ -344,6 +345,8 @@ export default function Home() {
   const todayTasks = subTasks.filter(task => !task.completed && task.createdAt?.startsWith(todayKey));
   const journalEntries = data?.journalEntries ?? [];
   const sortedJournalEntries = [...journalEntries].sort((a, b) => b.date.localeCompare(a.date));
+  const coachingLogs = data?.coachingLogs ?? [];
+  const sortedCoachingLogs = [...coachingLogs].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
   const badgeDefinitions = [
     {
@@ -445,6 +448,42 @@ export default function Home() {
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const handleGenerateCheckin = async () => {
+    if (!user || !data) return;
+    setIsGeneratingCheckin(true);
+    try {
+      const prompt = [
+        'You are a supportive coach. Review the progress snapshot and provide:',
+        '1) 2-3 encouraging sentences,',
+        '2) one concrete next step,',
+        '3) one gentle adjustment if progress is slow.',
+        '',
+        `Progress snapshot:`,
+        `- Completion rate: ${completionRate}%`,
+        `- Completed tasks: ${doneTasks.length}/${totalTasks}`,
+        `- Streak days: ${streakDays}`,
+        `- Level: ${data.tiger.level}`,
+        `- XP: ${data.tiger.xp}`,
+      ].join('\n');
+
+      const summary = await aiClient.chat([{ role: 'user', content: prompt }]);
+      const entry = {
+        id: `checkin-${Date.now()}`,
+        createdAt: new Date().toISOString(),
+        summary: summary.trim() || 'No response.',
+        prompt,
+      };
+      const newData = { ...data, coachingLogs: [entry, ...coachingLogs] };
+      await FirestoreService.saveUserData(user, newData);
+      setData(newData);
+    } catch (error) {
+      console.error('Failed to generate check-in:', error);
+      alert('Failed to generate check-in. Please try again.');
+    } finally {
+      setIsGeneratingCheckin(false);
+    }
   };
 
   const handleSaveJournalEntry = async () => {
@@ -732,10 +771,11 @@ export default function Home() {
       </div>
 
       <Tabs defaultValue="mandala" className="w-full">
-        <TabsList className="grid w-full grid-cols-7 print:hidden glass-panel rounded-xl">
+        <TabsList className="grid w-full grid-cols-8 print:hidden glass-panel rounded-xl">
           <TabsTrigger value="dashboard" className="text-white data-[state=active]:bg-white/20">Dashboard</TabsTrigger>
           <TabsTrigger value="achievements" className="text-white data-[state=active]:bg-white/20">Achievements</TabsTrigger>
           <TabsTrigger value="journal" className="text-white data-[state=active]:bg-white/20">Journal</TabsTrigger>
+          <TabsTrigger value="checkin" className="text-white data-[state=active]:bg-white/20">Check-in</TabsTrigger>
           <TabsTrigger value="mandala" className="text-white data-[state=active]:bg-white/20">Mandala View</TabsTrigger>
           <TabsTrigger value="kanban" className="text-white data-[state=active]:bg-white/20">Kanban View</TabsTrigger>
           <TabsTrigger value="lessons" className="text-white data-[state=active]:bg-white/20">Lessons</TabsTrigger>
@@ -923,6 +963,43 @@ export default function Home() {
                   ))
                 ) : (
                   <div className="text-xs text-white/60">No reflections yet.</div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="checkin" className="mt-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <Card className="glass-panel">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">AI check-in</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4 text-xs text-white/70">
+                <div>Generate a short coaching note based on your current progress.</div>
+                <Button onClick={handleGenerateCheckin} disabled={isGeneratingCheckin}>
+                  {isGeneratingCheckin ? 'Generating...' : 'Generate check-in'}
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card className="glass-panel">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Coaching history</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {sortedCoachingLogs.length > 0 ? (
+                  sortedCoachingLogs.map((entry) => (
+                    <div key={entry.id} className="rounded-md border border-white/10 bg-white/5 p-3 text-xs text-white/80 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold">{new Date(entry.createdAt).toLocaleString()}</span>
+                        <Badge variant="secondary" className="text-[10px]">Check-in</Badge>
+                      </div>
+                      <div className="whitespace-pre-wrap">{entry.summary}</div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-xs text-white/60">No check-ins yet.</div>
                 )}
               </CardContent>
             </Card>

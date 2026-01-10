@@ -56,6 +56,13 @@ export type NotificationConfig = {
     pushEnabled: boolean;
 };
 
+export type CoachingLog = {
+    id: string;
+    createdAt: string;
+    summary: string;
+    prompt: string;
+};
+
 export type JournalEntry = {
     id: string;
     date: string;
@@ -75,6 +82,7 @@ export type AppData = {
     notifications?: NotificationConfig;
     pushTokens?: string[];
     journalEntries?: JournalEntry[];
+    coachingLogs?: CoachingLog[];
 };
 
 export type ChatMessage = {
