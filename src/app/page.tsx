@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { CheckCircle2, Circle, Sun } from 'lucide-react';
 
-import { AiConfig, AppData, Lesson, MandalaCell, MandalaChart, NotificationConfig, SubTask, Team } from '@/lib/types';
+import { AiConfig, AppData, Lesson, MandalaCell, MandalaChart, NotificationConfig, SubTask, Team, TeamComment } from '@/lib/types';
 import { aiClient, DEFAULT_CONFIG as DEFAULT_AI_CLIENT_CONFIG } from '@/lib/ai_client';
 import { FirestoreService } from '@/lib/firestore_service';
 import { registerPushNotifications } from '@/lib/firebase';
@@ -77,6 +77,8 @@ export default function Home() {
   const [isSyncingTeamMandala, setIsSyncingTeamMandala] = useState(false);
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
+  const [teamComment, setTeamComment] = useState('');
+  const [isPostingComment, setIsPostingComment] = useState(false);
 
   const [generatedMandala, setGeneratedMandala] = useState<{ centerGoal: string; surroundingGoals: string[] } | null>(null);
   const [isGeneratingMandala, setIsGeneratingMandala] = useState(false);
@@ -452,6 +454,8 @@ export default function Home() {
   const latestWeeklySummary = sortedJournalSummaries.find(summary => summary.period === 'weekly');
   const latestMonthlySummary = sortedJournalSummaries.find(summary => summary.period === 'monthly');
   const activeTeam = teams.find(team => team.id === activeTeamId) ?? null;
+  const activeTeamComments = activeTeam?.comments ?? [];
+  const sortedTeamComments = [...activeTeamComments].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   const activeTeamProgress = activeTeam ? computeMandalaProgress(activeTeam.sharedMandala) : null;
   const xpSeries7 = buildXpSeries(7);
   const weeklyXpTotal = xpSeries7.reduce((sum, entry) => sum + entry.xp, 0);
@@ -865,6 +869,34 @@ export default function Home() {
       alert('Failed to sync team mandala. Please try again.');
     } finally {
       setIsSyncingTeamMandala(false);
+    }
+  };
+
+  const handlePostTeamComment = async () => {
+    if (!user || !activeTeam) return;
+    const message = teamComment.trim();
+    if (!message) return;
+    setIsPostingComment(true);
+    try {
+      const comment: TeamComment = {
+        id: `comment-${Date.now()}`,
+        authorId: user.uid,
+        authorName: user.displayName || 'Anonymous',
+        message,
+        createdAt: new Date().toISOString(),
+      };
+      await FirestoreService.addTeamComment(activeTeam.id, comment);
+      setTeams((prev) => prev.map(team => (
+        team.id === activeTeam.id
+          ? { ...team, comments: [comment, ...(team.comments || [])] }
+          : team
+      )));
+      setTeamComment('');
+    } catch (error) {
+      console.error('Failed to post team comment:', error);
+      alert('Failed to post comment. Please try again.');
+    } finally {
+      setIsPostingComment(false);
     }
   };
 
@@ -1506,6 +1538,35 @@ export default function Home() {
                           {section.centerCell?.title || 'Untitled'}
                         </div>
                       ))}
+                    </div>
+                  </div>
+                  <div className="rounded-md border border-white/10 bg-white/5 p-3 space-y-3">
+                    <div className="text-[10px] text-white/60">Team comments</div>
+                    <div className="space-y-2">
+                      {sortedTeamComments.length > 0 ? (
+                        sortedTeamComments.map(comment => (
+                          <div key={comment.id} className="rounded-md border border-white/10 bg-white/10 p-2 text-[11px] text-white/80">
+                            <div className="flex items-center justify-between text-[10px] text-white/60">
+                              <span>{comment.authorName}</span>
+                              <span>{new Date(comment.createdAt).toLocaleString()}</span>
+                            </div>
+                            <div className="mt-1 whitespace-pre-wrap text-white/90">{comment.message}</div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-xs text-white/60">No comments yet.</div>
+                      )}
+                    </div>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <input
+                        value={teamComment}
+                        onChange={(e) => setTeamComment(e.target.value)}
+                        className="flex-1 rounded-md border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/90 placeholder:text-white/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/40"
+                        placeholder="Leave feedback..."
+                      />
+                      <Button onClick={handlePostTeamComment} disabled={isPostingComment}>
+                        {isPostingComment ? 'Posting...' : 'Post'}
+                      </Button>
                     </div>
                   </div>
                 </>

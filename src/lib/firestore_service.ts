@@ -1,6 +1,6 @@
 import { db } from "./firebase";
 import { doc, getDoc, setDoc, updateDoc, collection, getDocs, addDoc, arrayUnion, query, where, limit } from "firebase/firestore";
-import { AiConfig, AppData, Lesson, LessonProgress, MandalaChart, NotificationConfig, ObsidianConfig, Team } from "./types";
+import { AiConfig, AppData, Lesson, LessonProgress, MandalaChart, NotificationConfig, ObsidianConfig, Team, TeamComment } from "./types";
 import { User } from "firebase/auth";
 
 const DEFAULT_DATA: AppData = {
@@ -367,5 +367,12 @@ export const FirestoreService = {
     async updateTeamMandala(teamId: string, mandala: MandalaChart): Promise<void> {
         const teamRef = doc(db, "teams", teamId);
         await updateDoc(teamRef, { sharedMandala: mandala });
+    },
+
+    async addTeamComment(teamId: string, comment: TeamComment): Promise<void> {
+        const teamRef = doc(db, "teams", teamId);
+        await updateDoc(teamRef, {
+            comments: arrayUnion(comment)
+        });
     }
 };

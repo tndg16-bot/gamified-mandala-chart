@@ -89,6 +89,15 @@ export type Team = {
     memberIds: string[];
     createdAt: string;
     sharedMandala: MandalaChart;
+    comments?: TeamComment[];
+};
+
+export type TeamComment = {
+    id: string;
+    authorId: string;
+    authorName: string;
+    message: string;
+    createdAt: string;
 };
 
 export type AppData = {
