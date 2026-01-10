@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { CheckCircle2, Circle, Sun } from 'lucide-react';
 
-import { AiConfig, AppData, Lesson, MandalaCell, MandalaChart, NotificationConfig, SubTask, Team, TeamComment } from '@/lib/types';
+import { AiConfig, AppData, CoachFeedback, Lesson, MandalaCell, MandalaChart, NotificationConfig, SubTask, Team, TeamComment } from '@/lib/types';
 import { aiClient, DEFAULT_CONFIG as DEFAULT_AI_CLIENT_CONFIG } from '@/lib/ai_client';
 import { FirestoreService } from '@/lib/firestore_service';
 import { registerPushNotifications } from '@/lib/firebase';
@@ -79,6 +79,12 @@ export default function Home() {
   const [authPassword, setAuthPassword] = useState('');
   const [teamComment, setTeamComment] = useState('');
   const [isPostingComment, setIsPostingComment] = useState(false);
+  const [coachClients, setCoachClients] = useState<{ id: string; data: AppData }[]>([]);
+  const [isLoadingCoachClients, setIsLoadingCoachClients] = useState(false);
+  const [newClientId, setNewClientId] = useState('');
+  const [isAddingClient, setIsAddingClient] = useState(false);
+  const [feedbackDrafts, setFeedbackDrafts] = useState<Record<string, string>>({});
+  const [isSendingFeedback, setIsSendingFeedback] = useState<Record<string, boolean>>({});
 
   const [generatedMandala, setGeneratedMandala] = useState<{ centerGoal: string; surroundingGoals: string[] } | null>(null);
   const [isGeneratingMandala, setIsGeneratingMandala] = useState(false);
@@ -399,6 +405,21 @@ export default function Home() {
     return { doneCount, totalCount, completionRate };
   };
 
+  const computeClientSummary = (clientData: AppData) => {
+    const progress = computeMandalaProgress(clientData.mandala);
+    const xpHistory = clientData.xpHistory || [];
+    const xpMap = new Map(xpHistory.map(entry => [entry.date, entry.xp]));
+    const series = Array.from({ length: 7 }).map((_, index) => {
+      const date = new Date();
+      date.setDate(date.getDate() - index);
+      const key = date.toISOString().split('T')[0];
+      return xpMap.get(key) || 0;
+    });
+    const weeklyXp = series.reduce((sum, value) => sum + value, 0);
+    const stagnated = weeklyXp <= 0;
+    return { ...progress, weeklyXp, stagnated };
+  };
+
   // Helper to get ALL Level 3 SubTasks for Kanban
   const getAllSubTasks = () => {
     if (!data) return [];
@@ -456,6 +477,7 @@ export default function Home() {
   const activeTeam = teams.find(team => team.id === activeTeamId) ?? null;
   const activeTeamComments = activeTeam?.comments ?? [];
   const sortedTeamComments = [...activeTeamComments].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const isCoach = data?.role === 'coach';
   const activeTeamProgress = activeTeam ? computeMandalaProgress(activeTeam.sharedMandala) : null;
   const xpSeries7 = buildXpSeries(7);
   const weeklyXpTotal = xpSeries7.reduce((sum, entry) => sum + entry.xp, 0);
@@ -872,6 +894,80 @@ export default function Home() {
     }
   };
 
+  const handleAddClient = async () => {
+    if (!user || !newClientId.trim()) return;
+    const clientId = newClientId.trim();
+    setIsAddingClient(true);
+    try {
+      await FirestoreService.addCoachClient(user, clientId);
+      setData((prev) => {
+        if (!prev) return prev;
+        const updated = new Set([...(prev.clientIds || []), clientId]);
+        return { ...prev, clientIds: Array.from(updated) };
+      });
+      setNewClientId('');
+    } catch (error) {
+      console.error('Failed to add client:', error);
+      alert('Failed to add client. Please check the ID.');
+    } finally {
+      setIsAddingClient(false);
+    }
+  };
+
+  const handleSendFeedback = async (clientId: string) => {
+    if (!user) return;
+    const message = (feedbackDrafts[clientId] || '').trim();
+    if (!message) return;
+    setIsSendingFeedback((prev) => ({ ...prev, [clientId]: true }));
+    try {
+      const feedback: CoachFeedback = {
+        id: `feedback-${Date.now()}`,
+        coachId: user.uid,
+        coachName: user.displayName || 'Coach',
+        message,
+        createdAt: new Date().toISOString(),
+      };
+      await FirestoreService.addCoachFeedback(clientId, feedback);
+      setCoachClients((prev) => prev.map(client => (
+        client.id === clientId
+          ? { ...client, data: { ...client.data, coachFeedback: [feedback, ...(client.data.coachFeedback || [])] } }
+          : client
+      )));
+      setFeedbackDrafts((prev) => ({ ...prev, [clientId]: '' }));
+    } catch (error) {
+      console.error('Failed to send feedback:', error);
+      alert('Failed to send feedback.');
+    } finally {
+      setIsSendingFeedback((prev) => ({ ...prev, [clientId]: false }));
+    }
+  };
+
+  useEffect(() => {
+    if (!user || !isCoach) {
+      setCoachClients([]);
+      return;
+    }
+    const clientIds = data?.clientIds || [];
+    if (clientIds.length === 0) {
+      setCoachClients([]);
+      return;
+    }
+    setIsLoadingCoachClients(true);
+    Promise.all(clientIds.map(async (clientId) => {
+      const clientData = await FirestoreService.loadUserDataById(clientId);
+      return clientData ? { id: clientId, data: clientData } : null;
+    }))
+      .then((results) => {
+        setCoachClients(results.filter(Boolean) as { id: string; data: AppData }[]);
+      })
+      .catch((error) => {
+        console.error('Failed to load coach clients:', error);
+      })
+      .finally(() => {
+        setIsLoadingCoachClients(false);
+      });
+  }, [user, isCoach, data?.clientIds]);
+
   const handlePostTeamComment = async () => {
     if (!user || !activeTeam) return;
     const message = teamComment.trim();
@@ -1106,12 +1202,15 @@ export default function Home() {
       </div>
 
       <Tabs defaultValue="mandala" className="w-full">
-        <TabsList className="grid w-full grid-cols-9 print:hidden glass-panel rounded-xl">
+        <TabsList className="grid w-full grid-cols-10 print:hidden glass-panel rounded-xl">
           <TabsTrigger value="dashboard" className="text-white data-[state=active]:bg-white/20">Dashboard</TabsTrigger>
           <TabsTrigger value="achievements" className="text-white data-[state=active]:bg-white/20">Achievements</TabsTrigger>
           <TabsTrigger value="journal" className="text-white data-[state=active]:bg-white/20">Journal</TabsTrigger>
           <TabsTrigger value="checkin" className="text-white data-[state=active]:bg-white/20">Check-in</TabsTrigger>
           <TabsTrigger value="team" className="text-white data-[state=active]:bg-white/20">Team</TabsTrigger>
+          {isCoach && (
+            <TabsTrigger value="coach" className="text-white data-[state=active]:bg-white/20">Coach</TabsTrigger>
+          )}
           <TabsTrigger value="mandala" className="text-white data-[state=active]:bg-white/20">Mandala View</TabsTrigger>
           <TabsTrigger value="kanban" className="text-white data-[state=active]:bg-white/20">Kanban View</TabsTrigger>
           <TabsTrigger value="lessons" className="text-white data-[state=active]:bg-white/20">Lessons</TabsTrigger>
@@ -1576,6 +1675,105 @@ export default function Home() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {isCoach && (
+          <TabsContent value="coach" className="mt-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <Card className="glass-panel">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm">Client roster</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4 text-xs text-white/70">
+                  <div className="space-y-2">
+                    <label className="text-xs text-white/70">Add client ID</label>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <input
+                        value={newClientId}
+                        onChange={(e) => setNewClientId(e.target.value)}
+                        className="flex-1 rounded-md border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/90 placeholder:text-white/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/40"
+                        placeholder="User ID"
+                      />
+                      <Button onClick={handleAddClient} disabled={isAddingClient}>
+                        {isAddingClient ? 'Adding...' : 'Add'}
+                      </Button>
+                    </div>
+                  </div>
+                  <Separator className="bg-white/10" />
+                  {isLoadingCoachClients ? (
+                    <div className="text-xs text-white/60">Loading clients...</div>
+                  ) : coachClients.length > 0 ? (
+                    <div className="space-y-2">
+                      {coachClients.map((client) => {
+                        const summary = computeClientSummary(client.data);
+                        const latestFeedback = client.data.coachFeedback?.[0];
+                        return (
+                          <div key={client.id} className="rounded-md border border-white/10 bg-white/5 p-3 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <div className="text-sm text-white">{client.data.mandala.centerSection.centerCell.title}</div>
+                                <div className="text-[10px] text-white/60">ID: {client.id}</div>
+                              </div>
+                              {summary.stagnated ? (
+                                <Badge variant="outline" className="text-[10px]">Stagnant</Badge>
+                              ) : (
+                                <Badge variant="secondary" className="text-[10px]">Active</Badge>
+                              )}
+                            </div>
+                            <div className="space-y-1 text-[10px] text-white/70">
+                              <div>Progress: {summary.doneCount}/{summary.totalCount} ({summary.completionRate}%)</div>
+                              <div>Weekly XP: {summary.weeklyXp}</div>
+                            </div>
+                            {latestFeedback && (
+                              <div className="rounded-md border border-white/10 bg-white/10 p-2 text-[10px] text-white/70">
+                                Latest feedback: {latestFeedback.message}
+                              </div>
+                            )}
+                            <div className="flex flex-col sm:flex-row gap-2">
+                              <input
+                                value={feedbackDrafts[client.id] || ''}
+                                onChange={(e) => setFeedbackDrafts((prev) => ({ ...prev, [client.id]: e.target.value }))}
+                                className="flex-1 rounded-md border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/90 placeholder:text-white/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/40"
+                                placeholder="Send feedback..."
+                              />
+                              <Button
+                                onClick={() => handleSendFeedback(client.id)}
+                                disabled={!!isSendingFeedback[client.id]}
+                              >
+                                {isSendingFeedback[client.id] ? 'Sending...' : 'Send'}
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="text-xs text-white/60">No clients yet.</div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className="glass-panel">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm">Alerts</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3 text-xs text-white/70">
+                  {coachClients.filter(client => computeClientSummary(client.data).stagnated).length > 0 ? (
+                    coachClients
+                      .filter(client => computeClientSummary(client.data).stagnated)
+                      .map((client) => (
+                        <div key={client.id} className="rounded-md border border-white/10 bg-white/5 p-3">
+                          <div className="text-sm text-white">{client.data.mandala.centerSection.centerCell.title}</div>
+                          <div className="text-[10px] text-white/60">No XP in last 7 days.</div>
+                        </div>
+                      ))
+                  ) : (
+                    <div className="text-xs text-white/60">No alerts.</div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+        )}
 
         <TabsContent value="mandala" className="mt-4">
           <AnimatePresence mode="wait">

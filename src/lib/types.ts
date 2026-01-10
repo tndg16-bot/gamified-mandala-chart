@@ -81,6 +81,16 @@ export type JournalSummary = {
     entryDates: string[];
 };
 
+export type UserRole = 'coach' | 'client';
+
+export type CoachFeedback = {
+    id: string;
+    coachId: string;
+    coachName: string;
+    message: string;
+    createdAt: string;
+};
+
 export type Team = {
     id: string;
     name: string;
@@ -112,6 +122,9 @@ export type AppData = {
     journalEntries?: JournalEntry[];
     coachingLogs?: CoachingLog[];
     journalSummaries?: JournalSummary[];
+    role?: UserRole;
+    clientIds?: string[];
+    coachFeedback?: CoachFeedback[];
 };
 
 export type ChatMessage = {

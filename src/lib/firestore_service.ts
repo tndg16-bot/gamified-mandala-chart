@@ -1,6 +1,6 @@
 import { db } from "./firebase";
 import { doc, getDoc, setDoc, updateDoc, collection, getDocs, addDoc, arrayUnion, query, where, limit } from "firebase/firestore";
-import { AiConfig, AppData, Lesson, LessonProgress, MandalaChart, NotificationConfig, ObsidianConfig, Team, TeamComment } from "./types";
+import { AiConfig, AppData, CoachFeedback, Lesson, LessonProgress, MandalaChart, NotificationConfig, ObsidianConfig, Team, TeamComment } from "./types";
 import { User } from "firebase/auth";
 
 const DEFAULT_DATA: AppData = {
@@ -59,7 +59,10 @@ const DEFAULT_DATA: AppData = {
     pushTokens: [],
     journalEntries: [],
     coachingLogs: [],
-    journalSummaries: []
+    journalSummaries: [],
+    role: 'client',
+    clientIds: [],
+    coachFeedback: []
 };
 
 export const FirestoreService = {
@@ -82,13 +85,42 @@ export const FirestoreService = {
                 pushTokens: userData.pushTokens || DEFAULT_DATA.pushTokens,
                 journalEntries: userData.journalEntries || DEFAULT_DATA.journalEntries,
                 coachingLogs: userData.coachingLogs || DEFAULT_DATA.coachingLogs,
-                journalSummaries: userData.journalSummaries || DEFAULT_DATA.journalSummaries
+                journalSummaries: userData.journalSummaries || DEFAULT_DATA.journalSummaries,
+                role: userData.role || DEFAULT_DATA.role,
+                clientIds: userData.clientIds || DEFAULT_DATA.clientIds,
+                coachFeedback: userData.coachFeedback || DEFAULT_DATA.coachFeedback
             };
         } else {
             // Initialize new user data
             await setDoc(userDocRef, DEFAULT_DATA);
             return DEFAULT_DATA;
         }
+    },
+
+    loadUserDataById: async (userId: string): Promise<AppData | null> => {
+        const userDocRef = doc(db, "users", userId);
+        const snapshot = await getDoc(userDocRef);
+
+        if (!snapshot.exists()) {
+            return null;
+        }
+        const userData = snapshot.data() as AppData;
+        const mergedTiger = { ...DEFAULT_DATA.tiger, ...userData.tiger };
+        return {
+            ...DEFAULT_DATA,
+            ...userData,
+            tiger: mergedTiger,
+            aiConfig: userData.aiConfig || DEFAULT_DATA.aiConfig,
+            xpHistory: userData.xpHistory || DEFAULT_DATA.xpHistory,
+            notifications: userData.notifications || DEFAULT_DATA.notifications,
+            pushTokens: userData.pushTokens || DEFAULT_DATA.pushTokens,
+            journalEntries: userData.journalEntries || DEFAULT_DATA.journalEntries,
+            coachingLogs: userData.coachingLogs || DEFAULT_DATA.coachingLogs,
+            journalSummaries: userData.journalSummaries || DEFAULT_DATA.journalSummaries,
+            role: userData.role || DEFAULT_DATA.role,
+            clientIds: userData.clientIds || DEFAULT_DATA.clientIds,
+            coachFeedback: userData.coachFeedback || DEFAULT_DATA.coachFeedback
+        };
     },
 
     // Save full state (heavy, use sparingly)
@@ -373,6 +405,21 @@ export const FirestoreService = {
         const teamRef = doc(db, "teams", teamId);
         await updateDoc(teamRef, {
             comments: arrayUnion(comment)
+        });
+    },
+
+    async addCoachClient(user: User, clientId: string): Promise<void> {
+        if (!user.uid) throw new Error("User ID missing");
+        const userDocRef = doc(db, "users", user.uid);
+        await updateDoc(userDocRef, {
+            clientIds: arrayUnion(clientId)
+        });
+    },
+
+    async addCoachFeedback(clientId: string, feedback: CoachFeedback): Promise<void> {
+        const userDocRef = doc(db, "users", clientId);
+        await updateDoc(userDocRef, {
+            coachFeedback: arrayUnion(feedback)
         });
     }
 };
