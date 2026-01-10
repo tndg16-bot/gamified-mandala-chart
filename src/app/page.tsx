@@ -49,6 +49,7 @@ export default function Home() {
   const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [xpRange, setXpRange] = useState<'7' | '30'>('7');
+  const [recentBadge, setRecentBadge] = useState<{ id: string; title: string; description: string } | null>(null);
 
   const [generatedMandala, setGeneratedMandala] = useState<{ centerGoal: string; surroundingGoals: string[] } | null>(null);
   const [isGeneratingMandala, setIsGeneratingMandala] = useState(false);
@@ -142,6 +143,7 @@ export default function Home() {
       return () => clearTimeout(timer);
     }
   }, [data, handleAutoSync]);
+
 
   useEffect(() => {
     if (!data?.notifications?.enabled || !data.notifications.pushEnabled) return;
@@ -310,6 +312,7 @@ export default function Home() {
   const totalTasks = subTasks.length;
   const completionRate = totalTasks > 0 ? Math.round((doneTasks.length / totalTasks) * 100) : 0;
   const streakDays = data?.tiger.streakDays ?? 0;
+  const completedLessons = data?.lessonProgress?.filter(lp => lp.completed).length ?? 0;
 
   const xpHistory = data?.xpHistory || [];
   const xpHistoryMap = new Map(xpHistory.map(entry => [entry.date, entry.xp]));
@@ -333,6 +336,73 @@ export default function Home() {
   }).join(' ');
   const todayKey = new Date().toISOString().split('T')[0];
   const todayTasks = subTasks.filter(task => !task.completed && task.createdAt?.startsWith(todayKey));
+
+  const badgeDefinitions = [
+    {
+      id: 'streak-3',
+      title: '3-Day Streak',
+      description: 'Complete tasks 3 days in a row.',
+      isEarned: () => streakDays >= 3,
+    },
+    {
+      id: 'streak-7',
+      title: '7-Day Streak',
+      description: 'Keep going for a full week.',
+      isEarned: () => streakDays >= 7,
+    },
+    {
+      id: 'streak-30',
+      title: '30-Day Streak',
+      description: 'A month of consistency.',
+      isEarned: () => streakDays >= 30,
+    },
+    {
+      id: 'tasks-10',
+      title: 'Task Finisher',
+      description: 'Complete 10 tasks.',
+      isEarned: () => doneTasks.length >= 10,
+    },
+    {
+      id: 'tasks-50',
+      title: 'Goal Crusher',
+      description: 'Complete 50 tasks.',
+      isEarned: () => doneTasks.length >= 50,
+    },
+    {
+      id: 'level-5',
+      title: 'Tiger Tamer',
+      description: 'Reach level 5.',
+      isEarned: () => (data?.tiger.level ?? 0) >= 5,
+    },
+    {
+      id: 'lesson-1',
+      title: 'Lesson Starter',
+      description: 'Finish your first lesson.',
+      isEarned: () => completedLessons >= 1,
+    },
+  ];
+  const earnedBadgeIds = badgeDefinitions.filter(badge => badge.isEarned()).map(badge => badge.id);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!data) return;
+    const stored = JSON.parse(localStorage.getItem('earned_badges') || '[]') as string[];
+    const newlyEarned = earnedBadgeIds.filter(id => !stored.includes(id));
+    if (newlyEarned.length === 0) return;
+
+    const updated = Array.from(new Set([...stored, ...earnedBadgeIds]));
+    localStorage.setItem('earned_badges', JSON.stringify(updated));
+    const badge = badgeDefinitions.find(item => item.id === newlyEarned[0]);
+    if (badge) {
+      setRecentBadge({ id: badge.id, title: badge.title, description: badge.description });
+    }
+  }, [data, earnedBadgeIds]);
+
+  useEffect(() => {
+    if (!recentBadge) return;
+    const timer = setTimeout(() => setRecentBadge(null), 4000);
+    return () => clearTimeout(timer);
+  }, [recentBadge]);
 
   const handleExportMarkdown = () => {
     if (!data) return;
@@ -522,6 +592,20 @@ export default function Home() {
 
   return (
     <div className="min-h-screen p-4 md:p-8 transition-colors duration-1000 print:bg-white print:p-0 bali-bg">
+      <AnimatePresence>
+        {recentBadge && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="fixed top-6 left-1/2 z-50 w-[90%] max-w-sm -translate-x-1/2 rounded-xl border border-orange-300/40 bg-white/90 p-4 text-slate-900 shadow-lg"
+          >
+            <div className="text-xs uppercase text-orange-600 font-semibold">New Badge Unlocked</div>
+            <div className="text-lg font-bold">{recentBadge.title}</div>
+            <div className="text-xs text-slate-600">{recentBadge.description}</div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Header / Tiger HUD - Hide on Print */}
       <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4 print:hidden glass-panel rounded-2xl p-4">
@@ -601,8 +685,9 @@ export default function Home() {
       </div>
 
       <Tabs defaultValue="mandala" className="w-full">
-        <TabsList className="grid w-full grid-cols-5 print:hidden glass-panel rounded-xl">
+        <TabsList className="grid w-full grid-cols-6 print:hidden glass-panel rounded-xl">
           <TabsTrigger value="dashboard" className="text-white data-[state=active]:bg-white/20">Dashboard</TabsTrigger>
+          <TabsTrigger value="achievements" className="text-white data-[state=active]:bg-white/20">Achievements</TabsTrigger>
           <TabsTrigger value="mandala" className="text-white data-[state=active]:bg-white/20">Mandala View</TabsTrigger>
           <TabsTrigger value="kanban" className="text-white data-[state=active]:bg-white/20">Kanban View</TabsTrigger>
           <TabsTrigger value="lessons" className="text-white data-[state=active]:bg-white/20">Lessons</TabsTrigger>
@@ -709,6 +794,25 @@ export default function Home() {
                 </div>
               </CardContent>
             </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="achievements" className="mt-4">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {badgeDefinitions.map((badge) => {
+              const earned = earnedBadgeIds.includes(badge.id);
+              return (
+                <Card key={badge.id} className={`glass-panel ${earned ? 'border-orange-300/40' : 'opacity-60'}`}>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm flex items-center justify-between">
+                      <span>{badge.title}</span>
+                      {earned ? <Badge variant="secondary">Unlocked</Badge> : <Badge variant="outline">Locked</Badge>}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="text-xs text-white/80">{badge.description}</CardContent>
+                </Card>
+              );
+            })}
           </div>
         </TabsContent>
 
