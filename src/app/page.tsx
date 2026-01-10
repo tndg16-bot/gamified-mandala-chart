@@ -22,6 +22,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -43,7 +44,7 @@ const getWeekKey = (date: Date) => {
 };
 
 export default function Home() {
-  const { user, loading: authLoading, signInWithGoogle, logout } = useAuth();
+  const { user, loading: authLoading, signInWithGoogle, signInWithEmail, signUpWithEmail, logout } = useAuth();
   const [data, setData] = useState<AppData | null>(null);
   const [loading, setLoading] = useState(true);
   const [isBrainstorming, setIsBrainstorming] = useState(false);
@@ -74,6 +75,8 @@ export default function Home() {
   const [isCreatingTeam, setIsCreatingTeam] = useState(false);
   const [isJoiningTeam, setIsJoiningTeam] = useState(false);
   const [isSyncingTeamMandala, setIsSyncingTeamMandala] = useState(false);
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
 
   const [generatedMandala, setGeneratedMandala] = useState<{ centerGoal: string; surroundingGoals: string[] } | null>(null);
   const [isGeneratingMandala, setIsGeneratingMandala] = useState(false);
@@ -222,6 +225,22 @@ export default function Home() {
     return () => window.clearInterval(interval);
   }, [data?.notifications]);
 
+  const handleEmailSignIn = () => {
+    if (!authEmail.trim() || !authPassword) {
+      alert('Enter email and password.');
+      return;
+    }
+    signInWithEmail(authEmail.trim(), authPassword);
+  };
+
+  const handleEmailSignUp = () => {
+    if (!authEmail.trim() || !authPassword) {
+      alert('Enter email and password.');
+      return;
+    }
+    signUpWithEmail(authEmail.trim(), authPassword);
+  };
+
   if (authLoading) return <div className="flex h-screen items-center justify-center">Authenticating...</div>;
 
   if (!user) {
@@ -229,6 +248,35 @@ export default function Home() {
       <div className="flex h-screen flex-col items-center justify-center bg-slate-900 text-white gap-6">
         <h1 className="text-4xl font-bold">🦁 Gamified Mandala</h1>
         <p className="text-slate-400">Sign in to start your journey.</p>
+        <div className="w-full max-w-sm space-y-3">
+          <Input
+            type="email"
+            value={authEmail}
+            onChange={(e) => setAuthEmail(e.target.value)}
+            placeholder="Email"
+          />
+          <Input
+            type="password"
+            value={authPassword}
+            onChange={(e) => setAuthPassword(e.target.value)}
+            placeholder="Password"
+          />
+          <div className="flex gap-2">
+            <Button
+              onClick={handleEmailSignIn}
+              className="flex-1 bg-slate-800 hover:bg-slate-700"
+            >
+              Sign in
+            </Button>
+            <Button
+              onClick={handleEmailSignUp}
+              className="flex-1 bg-slate-700 hover:bg-slate-600"
+            >
+              Create account
+            </Button>
+          </div>
+        </div>
+        <Separator className="w-full max-w-sm bg-white/10" />
         <Button onClick={signInWithGoogle} size="lg" className="bg-blue-600 hover:bg-blue-500">
           Sign in with Google
         </Button>
