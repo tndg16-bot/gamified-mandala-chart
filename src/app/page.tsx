@@ -90,6 +90,8 @@ export default function Home() {
   const [isSendingFeedback, setIsSendingFeedback] = useState<Record<string, boolean>>({});
   const [marketplaceQuery, setMarketplaceQuery] = useState('');
   const [marketplaceCategory, setMarketplaceCategory] = useState('All');
+  const [purchasedLessons, setPurchasedLessons] = useState<string[]>([]);
+  const [purchasingLessonId, setPurchasingLessonId] = useState<string | null>(null);
 
   const [generatedMandala, setGeneratedMandala] = useState<{ centerGoal: string; surroundingGoals: string[] } | null>(null);
   const [isGeneratingMandala, setIsGeneratingMandala] = useState(false);
@@ -833,13 +835,45 @@ export default function Home() {
     setLessons(updatedLessons);
   };
 
-  const handleUpdateLessonMeta = async (lesson: Lesson, updates: { isPublic?: boolean; category?: string }) => {
+  const handleUpdateLessonMeta = async (
+    lesson: Lesson,
+    updates: { isPublic?: boolean; category?: string; priceCents?: number; currency?: string }
+  ) => {
     if (!lesson.id) return;
     await FirestoreService.updateLessonMeta(lesson.id, updates);
     const updatedLessons = await FirestoreService.getLessonsForUser(user.uid || '');
     setLessons(updatedLessons);
     const updatedMarketplace = await FirestoreService.getPublicLessons();
     setMarketplaceLessons(updatedMarketplace);
+  };
+
+  const handleBuyLesson = async (lesson: Lesson) => {
+    if (!lesson.priceCents) return;
+    setPurchasingLessonId(lesson.id);
+    try {
+      const response = await fetch('/api/stripe/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          lessonId: lesson.id,
+          title: lesson.title,
+          priceCents: lesson.priceCents,
+          currency: lesson.currency || 'usd'
+        })
+      });
+      if (!response.ok) {
+        throw new Error('Checkout failed');
+      }
+      const data = await response.json();
+      if (data?.url) {
+        window.location.href = data.url;
+      }
+    } catch (error) {
+      console.error('Failed to start checkout:', error);
+      alert('Failed to start checkout.');
+    } finally {
+      setPurchasingLessonId(null);
+    }
   };
 
   const handleExportMandala = async () => {
@@ -1042,6 +1076,29 @@ export default function Home() {
         setIsLoadingCoachClients(false);
       });
   }, [user, isCoach, data?.clientIds]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const stored = JSON.parse(localStorage.getItem('purchased_lessons') || '[]') as string[];
+    setPurchasedLessons(stored);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const status = params.get('checkout');
+    const lessonId = params.get('lessonId');
+    if (status === 'success' && lessonId) {
+      const updated = Array.from(new Set([...purchasedLessons, lessonId]));
+      localStorage.setItem('purchased_lessons', JSON.stringify(updated));
+      setPurchasedLessons(updated);
+      params.delete('checkout');
+      params.delete('lessonId');
+      const newUrl = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ''}`;
+      window.history.replaceState({}, '', newUrl);
+      alert('Purchase complete. You can import the lesson.');
+    }
+  }, [purchasedLessons]);
 
   const handlePostTeamComment = async () => {
     if (!user || !activeTeam) return;
@@ -1978,6 +2035,7 @@ export default function Home() {
               isOwner={!selectedLesson.authorId || selectedLesson.authorId === user.uid}
               onTogglePublish={(lesson, publish) => handleUpdateLessonMeta(lesson, { isPublic: publish })}
               onUpdateCategory={(lesson, category) => handleUpdateLessonMeta(lesson, { category })}
+              onUpdatePrice={(lesson, priceCents) => handleUpdateLessonMeta(lesson, { priceCents })}
             />
           ) : (
             <Tabs defaultValue="my-lessons" className="w-full">
@@ -2043,12 +2101,28 @@ export default function Home() {
                             <span>Lvl {lesson.requiredLevel}</span>
                             <span>{lesson.xp} XP</span>
                           </div>
-                          <Button
-                            variant="outline"
-                            onClick={() => handleImportMarketplaceLesson(lesson)}
-                          >
-                            Import to my lessons
-                          </Button>
+                          <div className="flex items-center justify-between text-xs text-white/60">
+                            <span>Price</span>
+                            <span>
+                              {lesson.priceCents ? `$${(lesson.priceCents / 100).toFixed(2)}` : 'Free'}
+                            </span>
+                          </div>
+                          {lesson.priceCents && !purchasedLessons.includes(lesson.id) ? (
+                            <Button
+                              variant="outline"
+                              onClick={() => handleBuyLesson(lesson)}
+                              disabled={purchasingLessonId === lesson.id}
+                            >
+                              {purchasingLessonId === lesson.id ? 'Processing...' : 'Buy'}
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="outline"
+                              onClick={() => handleImportMarketplaceLesson(lesson)}
+                            >
+                              Import to my lessons
+                            </Button>
+                          )}
                         </CardContent>
                       </Card>
                     ))

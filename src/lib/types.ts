@@ -146,6 +146,8 @@ export type Lesson = {
     authorName?: string;
     isPublic?: boolean;
     category?: string;
+    priceCents?: number;
+    currency?: string;
 };
 
 export type LessonProgress = {

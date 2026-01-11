@@ -314,12 +314,17 @@ export const FirestoreService = {
                 authorId: author?.id || lesson.authorId,
                 authorName: author?.name || lesson.authorName,
                 isPublic: lesson.isPublic ?? false,
-                category: lesson.category
+                category: lesson.category,
+                priceCents: lesson.priceCents,
+                currency: lesson.currency
             });
         }
     },
 
-    async updateLessonMeta(lessonId: string, updates: { isPublic?: boolean; category?: string }): Promise<void> {
+    async updateLessonMeta(
+        lessonId: string,
+        updates: { isPublic?: boolean; category?: string; priceCents?: number; currency?: string }
+    ): Promise<void> {
         const lessonsRef = collection(db, "lessons");
         const q = query(lessonsRef, where("id", "==", lessonId), limit(1));
         const snapshot = await getDocs(q);

@@ -15,6 +15,7 @@ interface LessonDetailProps {
     isOwner?: boolean
     onTogglePublish?: (lesson: Lesson, publish: boolean) => void
     onUpdateCategory?: (lesson: Lesson, category: string) => void
+    onUpdatePrice?: (lesson: Lesson, priceCents: number) => void
 }
 
 export function LessonDetail({
@@ -29,9 +30,13 @@ export function LessonDetail({
     const isCompleted = progress?.completed;
     const isStarted = progress?.startedAt;
     const [category, setCategory] = useState(lesson.category || "");
+    const [price, setPrice] = useState(
+        lesson.priceCents !== undefined ? String(lesson.priceCents / 100) : ""
+    );
 
     useEffect(() => {
         setCategory(lesson.category || "");
+        setPrice(lesson.priceCents !== undefined ? String(lesson.priceCents / 100) : "");
     }, [lesson.category, lesson.id]);
 
     return (
@@ -100,6 +105,21 @@ export function LessonDetail({
                                         onBlur={() => onUpdateCategory?.(lesson, category.trim())}
                                         placeholder="Category (e.g. Productivity)"
                                         className="flex-1"
+                                    />
+                                    <Input
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        value={price}
+                                        onChange={(e) => setPrice(e.target.value)}
+                                        onBlur={() => {
+                                            const value = Number(price);
+                                            if (!Number.isNaN(value)) {
+                                                onUpdatePrice?.(lesson, Math.round(value * 100));
+                                            }
+                                        }}
+                                        placeholder="Price (USD)"
+                                        className="w-32"
                                     />
                                     <Button
                                         variant={lesson.isPublic ? "outline" : "default"}
