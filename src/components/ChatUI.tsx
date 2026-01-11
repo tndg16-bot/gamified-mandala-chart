@@ -87,8 +87,8 @@ export function ChatUI({ className }: ChatUIProps) {
           {messages.length === 0 && (
             <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
               <MessageSquare className="w-12 h-12 mb-4 opacity-50" />
-              <p className="text-sm">AIアシスタントに質問してみましょう</p>
-              <p className="text-xs mt-1">タスク管理や目標達成について話せます</p>
+              <p className="text-sm">Ask the AI assistant about your goals.</p>
+              <p className="text-xs mt-1">It can help with task ideas and planning.</p>
             </div>
           )}
 
@@ -139,7 +139,7 @@ export function ChatUI({ className }: ChatUIProps) {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="メッセージを入力... (Enterで送信)"
+              placeholder="Type a message... (Enter to send)"
               disabled={isLoading}
             />
             <Button
