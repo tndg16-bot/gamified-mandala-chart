@@ -54,6 +54,7 @@ export type NotificationConfig = {
     weeklyDay?: number;
     emailEnabled: boolean;
     pushEnabled: boolean;
+    lastSentAt?: string;
 };
 
 export type CoachingLog = {
