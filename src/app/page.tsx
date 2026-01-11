@@ -1779,6 +1779,25 @@ export default function Home() {
         )}
 
         <TabsContent value="mandala" className="mt-4">
+          <Card className="glass-panel mb-4">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">AI Mandala Generator</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="text-xs text-white/70">Enter a goal and generate a mandala structure.</div>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Input
+                  value={userMandalaGoal}
+                  onChange={(e) => setUserMandalaGoal(e.target.value)}
+                  placeholder="Goal (e.g. Launch new product)"
+                  className="flex-1"
+                />
+                <Button onClick={handleGenerateMandala} disabled={isGeneratingMandala || !userMandalaGoal.trim()}>
+                  {isGeneratingMandala ? 'Generating...' : 'Generate Mandala'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
           <AnimatePresence mode="wait">
             {!zoomSection ? (
               <motion.div
@@ -2057,6 +2076,34 @@ export default function Home() {
           </div>
           </DialogContent>
         </Dialog>
+
+      <Dialog open={isMandalaPreviewOpen} onOpenChange={setIsMandalaPreviewOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Generated Mandala</DialogTitle>
+            <DialogDescription>Review the suggested goals before applying.</DialogDescription>
+          </DialogHeader>
+          {generatedMandala && (
+            <div className="space-y-4">
+              <div className="rounded-md border border-white/10 bg-white/5 p-3">
+                <div className="text-xs text-white/60">Center goal</div>
+                <div className="text-sm text-white">{generatedMandala.centerGoal}</div>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs text-white/80">
+                {generatedMandala.surroundingGoals.map((goal, index) => (
+                  <div key={`${goal}-${index}`} className="rounded-md border border-white/10 bg-white/5 p-2">
+                    {goal}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="flex justify-end gap-2 mt-4">
+            <Button variant="outline" onClick={() => setIsMandalaPreviewOpen(false)}>Cancel</Button>
+            <Button onClick={handleApplyGeneratedMandala} disabled={!generatedMandala}>Apply</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Lesson Import Dialog */}
       <LessonImportDialog
