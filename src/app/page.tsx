@@ -1146,7 +1146,14 @@ export default function Home() {
     }
   };
 
-  const handleSaveSettings = async (exportPath: string, autoSync: boolean, aiConfig: AiConfig, notifications: NotificationConfig, role: AppData["role"]) => {
+  const handleSaveSettings = async (
+    exportPath: string,
+    autoSync: boolean,
+    aiConfig: AiConfig,
+    notifications: NotificationConfig,
+    role: AppData["role"],
+    slackUserId: string
+  ) => {
     if (!user) return;
     try {
       await FirestoreService.updateObsidianConfig(user, exportPath, autoSync);
@@ -1155,6 +1162,7 @@ export default function Home() {
       if (role) {
         await FirestoreService.updateUserRole(user, role);
       }
+      await FirestoreService.updateSlackUserId(user, slackUserId);
 
       if (notifications.pushEnabled) {
         try {
@@ -2398,6 +2406,7 @@ export default function Home() {
         aiConfig={data?.aiConfig || DEFAULT_AI_CLIENT_CONFIG}
         notificationConfig={data?.notifications || DEFAULT_NOTIFICATION_CONFIG} // aiConfigを追加
         role={data?.role || 'client'}
+        slackUserId={data?.slackUserId || ''}
         onSave={handleSaveSettings}
       />
 

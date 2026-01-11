@@ -134,6 +134,7 @@ export type AppData = {
     coachFeedback?: CoachFeedback[];
     purchasedLessonIds?: string[];
     behaviorStats?: UserBehaviorStats;
+    slackUserId?: string;
 };
 
 export type ChatMessage = {

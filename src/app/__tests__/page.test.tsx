@@ -13,6 +13,7 @@ let mockSettingsValues = {
   aiConfig: { provider: 'gemini', baseUrl: 'https://gemini.api', model: 'gemini-pro', apiKey: 'initial-key' },
   notifications: { enabled: false, time: '09:00', frequency: 'daily', weeklyDay: 1, emailEnabled: false, pushEnabled: false },
   role: 'client',
+  slackUserId: 'U12345678',
 };
 
 jest.mock('@/components/SettingsDialog', () => ({
@@ -27,7 +28,8 @@ jest.mock('@/components/SettingsDialog', () => ({
               mockSettingsValues.autoSync,
               mockSettingsValues.aiConfig,
               mockSettingsValues.notifications,
-              mockSettingsValues.role
+              mockSettingsValues.role,
+              mockSettingsValues.slackUserId
             );
           } catch (error) {
             console.error("Failed to save settings:", error);
@@ -59,6 +61,7 @@ const mockUpdateObsidianConfig = jest.fn();
 const mockUpdateAiConfig = jest.fn();
 const mockUpdateNotificationConfig = jest.fn();
 const mockUpdateUserRole = jest.fn();
+const mockUpdateSlackUserId = jest.fn();
 const mockAddPushToken = jest.fn();
 const mockGetLessonsForUser = jest.fn(() => Promise.resolve([]));
 const mockGetPublicLessons = jest.fn(() => Promise.resolve([]));
@@ -73,6 +76,7 @@ jest.mock('@/lib/firestore_service', () => ({
     updateAiConfig: (...args: any[]) => mockUpdateAiConfig(...args),
     updateNotificationConfig: (...args: any[]) => mockUpdateNotificationConfig(...args),
     updateUserRole: (...args: any[]) => mockUpdateUserRole(...args),
+    updateSlackUserId: (...args: any[]) => mockUpdateSlackUserId(...args),
     addPushToken: (...args: any[]) => mockAddPushToken(...args),
     getLessonsForUser: (...args: any[]) => mockGetLessonsForUser(...args),
     getPublicLessons: (...args: any[]) => mockGetPublicLessons(...args),
@@ -136,6 +140,7 @@ describe('Home Page - Settings Integration', () => {
     obsidian: { exportPath: '/initial/obsidian/path', autoSync: false },
     aiConfig: { provider: 'gemini', baseUrl: 'https://gemini.api', model: 'gemini-pro', apiKey: 'initial-key' },
     role: 'client',
+    slackUserId: 'U12345678',
   };
 
   beforeAll(() => { // beforeEach から beforeAll に変更
@@ -158,6 +163,7 @@ describe('Home Page - Settings Integration', () => {
       aiConfig: initialAppData.aiConfig,
       notifications: initialAppData.notifications,
       role: 'client',
+      slackUserId: 'U12345678',
     };
     mockLoadUserData.mockResolvedValue(initialAppData);
     mockAiClientGetConfig.mockReturnValue(initialAppData.aiConfig);
@@ -198,6 +204,7 @@ describe('Home Page - Settings Integration', () => {
     const updatedObsidianConfig = { exportPath: '/new/obsidian/path', autoSync: true };
     const updatedNotifications = { enabled: false, time: '09:00', frequency: 'daily', weeklyDay: 1, emailEnabled: false, pushEnabled: false };
     const updatedRole = 'coach';
+    const updatedSlackUserId = 'U87654321';
 
     mockSettingsValues = {
       obsidianPath: updatedObsidianConfig.exportPath,
@@ -205,6 +212,7 @@ describe('Home Page - Settings Integration', () => {
       aiConfig: updatedAiConfig,
       notifications: updatedNotifications,
       role: updatedRole,
+      slackUserId: updatedSlackUserId,
     };
 
     // Mock loadUserData to return data with updated config after save
@@ -214,6 +222,7 @@ describe('Home Page - Settings Integration', () => {
       aiConfig: updatedAiConfig,
       notifications: updatedNotifications,
       role: updatedRole,
+      slackUserId: updatedSlackUserId,
     });
 
     fireEvent.click(screen.getByText('Save Changes'));
@@ -223,6 +232,7 @@ describe('Home Page - Settings Integration', () => {
       expect(mockUpdateAiConfig).toHaveBeenCalledWith({ uid: 'test-uid', displayName: 'Test User' }, updatedAiConfig);
       expect(mockUpdateNotificationConfig).toHaveBeenCalledWith({ uid: 'test-uid', displayName: 'Test User' }, updatedNotifications);
       expect(mockUpdateUserRole).toHaveBeenCalledWith({ uid: 'test-uid', displayName: 'Test User' }, updatedRole);
+      expect(mockUpdateSlackUserId).toHaveBeenCalledWith({ uid: 'test-uid', displayName: 'Test User' }, updatedSlackUserId);
       expect(mockAiClientUpdateConfig).toHaveBeenCalled();
       expect(mockLoadUserData.mock.calls.length).toBeGreaterThanOrEqual(2);
       expect(mockAlert).toHaveBeenCalled();

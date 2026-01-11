@@ -86,6 +86,7 @@ describe('SettingsDialog', () => {
     pushEnabled: false,
   };
   const defaultRole = 'client';
+  const defaultSlackUserId = 'U12345678';
 
   const mockOnSave = jest.fn();
   const mockOnOpenChange = jest.fn();
@@ -104,6 +105,7 @@ describe('SettingsDialog', () => {
         aiConfig={defaultAiConfig}
         notificationConfig={defaultNotifications}
         role={defaultRole}
+        slackUserId={defaultSlackUserId}
         onSave={mockOnSave}
       />
     );
@@ -128,6 +130,7 @@ describe('SettingsDialog', () => {
         aiConfig={defaultAiConfig}
         notificationConfig={defaultNotifications}
         role={defaultRole}
+        slackUserId={defaultSlackUserId}
         onSave={mockOnSave}
       />
     );
@@ -151,6 +154,7 @@ describe('SettingsDialog', () => {
         aiConfig={defaultAiConfig}
         notificationConfig={defaultNotifications}
         role={defaultRole}
+        slackUserId={defaultSlackUserId}
         onSave={mockOnSave}
       />
     );
@@ -175,6 +179,7 @@ describe('SettingsDialog', () => {
         aiConfig={geminiConfig}
         notificationConfig={defaultNotifications}
         role={defaultRole}
+        slackUserId={defaultSlackUserId}
         onSave={mockOnSave}
       />
     );
@@ -195,6 +200,7 @@ describe('SettingsDialog', () => {
         aiConfig={defaultAiConfig}
         notificationConfig={defaultNotifications}
         role={defaultRole}
+        slackUserId={defaultSlackUserId}
         onSave={mockOnSave}
       />
     );
@@ -222,7 +228,8 @@ describe('SettingsDialog', () => {
           apiKey: 'test-api-key',
         },
         defaultNotifications,
-        defaultRole
+        defaultRole,
+        defaultSlackUserId
       );
     });
 
@@ -239,6 +246,7 @@ describe('SettingsDialog', () => {
         aiConfig={defaultAiConfig}
         notificationConfig={defaultNotifications}
         role={defaultRole}
+        slackUserId={defaultSlackUserId}
         onSave={mockOnSave}
       />
     );

@@ -22,21 +22,37 @@ interface SettingsDialogProps {
     aiConfig: AiConfig; // AiConfigを追加
     notificationConfig: NotificationConfig;
     role: UserRole;
-    onSave: (path: string, autoSync: boolean, aiConfig: AiConfig, notifications: NotificationConfig, role: UserRole) => Promise<void>; // onSaveのシグネチャ変更
+    slackUserId: string;
+    onSave: (
+        path: string,
+        autoSync: boolean,
+        aiConfig: AiConfig,
+        notifications: NotificationConfig,
+        role: UserRole,
+        slackUserId: string
+    ) => Promise<void>; // onSaveのシグネチャ変更
 }
 
-export function SettingsDialog({ open, onOpenChange, obsidianPath, autoSync, aiConfig, notificationConfig, role, onSave }: SettingsDialogProps) {
+export function SettingsDialog({ open, onOpenChange, obsidianPath, autoSync, aiConfig, notificationConfig, role, slackUserId, onSave }: SettingsDialogProps) {
     const [localPath, setLocalPath] = useState(obsidianPath);
     const [localAutoSync, setLocalAutoSync] = useState(autoSync);
     const [localAiConfig, setLocalAiConfig] = useState<AiConfig>(aiConfig); // localAiConfigを追加
     const [localNotificationConfig, setLocalNotificationConfig] = useState<NotificationConfig>(notificationConfig);
     const [localRole, setLocalRole] = useState<UserRole>(role);
+    const [localSlackUserId, setLocalSlackUserId] = useState(slackUserId);
     const [saving, setSaving] = useState(false);
 
     const handleSave = async () => {
         setSaving(true);
         try {
-            await onSave(localPath, localAutoSync, localAiConfig, localNotificationConfig, localRole); // localAiConfigを渡す
+            await onSave(
+                localPath,
+                localAutoSync,
+                localAiConfig,
+                localNotificationConfig,
+                localRole,
+                localSlackUserId.trim()
+            ); // localAiConfigを渡す
             onOpenChange(false);
         } catch (error) {
             console.error('Failed to save settings:', error);
@@ -185,6 +201,24 @@ export function SettingsDialog({ open, onOpenChange, obsidianPath, autoSync, aiC
                                     <SelectItem value="coach">Coach</SelectItem>
                                 </SelectContent>
                             </Select>
+                        </div>
+                    </div>
+                    <div className="space-y-2 mt-6">
+                        <h4 className="font-semibold text-lg border-b pb-2">Slack</h4>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="slack-user-id" className="text-right">
+                                User ID
+                            </Label>
+                            <Input
+                                id="slack-user-id"
+                                value={localSlackUserId}
+                                onChange={(e) => setLocalSlackUserId(e.target.value)}
+                                className="col-span-3"
+                                placeholder="U12345678"
+                            />
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                            Set your Slack User ID to enable slash command integration.
                         </div>
                     </div>
                     {/* Notification Settings */}

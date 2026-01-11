@@ -1,7 +1,7 @@
 import Stripe from "stripe";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
-import { adminDb } from "@/lib/firebase_admin";
+import { getAdminDb } from "@/lib/firebase_admin";
 import { FieldValue } from "firebase-admin/firestore";
 
 export const dynamic = "force-dynamic";
@@ -33,6 +33,7 @@ export async function POST(request: Request) {
     const lessonId = session.metadata?.lessonId;
     const userId = session.metadata?.userId;
     if (lessonId && userId) {
+      const adminDb = getAdminDb();
       const userRef = adminDb.collection("users").doc(userId);
       await userRef.set(
         { purchasedLessonIds: FieldValue.arrayUnion(lessonId) },

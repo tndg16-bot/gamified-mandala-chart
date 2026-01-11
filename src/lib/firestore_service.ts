@@ -67,7 +67,8 @@ const DEFAULT_DATA: AppData = {
     behaviorStats: {
         activityByHour: {},
         categoryCompletions: {}
-    }
+    },
+    slackUserId: ""
 };
 
 export const FirestoreService = {
@@ -95,7 +96,8 @@ export const FirestoreService = {
                 clientIds: userData.clientIds || DEFAULT_DATA.clientIds,
                 coachFeedback: userData.coachFeedback || DEFAULT_DATA.coachFeedback,
                 purchasedLessonIds: userData.purchasedLessonIds || DEFAULT_DATA.purchasedLessonIds,
-                behaviorStats: userData.behaviorStats || DEFAULT_DATA.behaviorStats
+                behaviorStats: userData.behaviorStats || DEFAULT_DATA.behaviorStats,
+                slackUserId: userData.slackUserId || DEFAULT_DATA.slackUserId
             };
         } else {
             // Initialize new user data
@@ -128,7 +130,8 @@ export const FirestoreService = {
             clientIds: userData.clientIds || DEFAULT_DATA.clientIds,
             coachFeedback: userData.coachFeedback || DEFAULT_DATA.coachFeedback,
             purchasedLessonIds: userData.purchasedLessonIds || DEFAULT_DATA.purchasedLessonIds,
-            behaviorStats: userData.behaviorStats || DEFAULT_DATA.behaviorStats
+            behaviorStats: userData.behaviorStats || DEFAULT_DATA.behaviorStats,
+            slackUserId: userData.slackUserId || DEFAULT_DATA.slackUserId
         };
     },
 
@@ -413,6 +416,12 @@ export const FirestoreService = {
         if (!user.uid) throw new Error("User ID missing");
         const userDocRef = doc(db, "users", user.uid);
         await updateDoc(userDocRef, { role });
+    },
+
+    async updateSlackUserId(user: User, slackUserId: string): Promise<void> {
+        if (!user.uid) throw new Error("User ID missing");
+        const userDocRef = doc(db, "users", user.uid);
+        await updateDoc(userDocRef, { slackUserId });
     },
 
     async addPushToken(user: User, token: string): Promise<void> {
