@@ -142,6 +142,10 @@ export type Lesson = {
     order: number;
     requiredLevel: number;
     xp: number;
+    authorId?: string;
+    authorName?: string;
+    isPublic?: boolean;
+    category?: string;
 };
 
 export type LessonProgress = {

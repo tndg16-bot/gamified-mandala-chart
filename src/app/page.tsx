@@ -25,6 +25,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader } from '@/compon
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const DEFAULT_NOTIFICATION_CONFIG: NotificationConfig = {
@@ -51,7 +52,8 @@ export default function Home() {
   const [isAddingSuggestions, setIsAddingSuggestions] = useState(false);
   const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
   const [selectedSuggestions, setSelectedSuggestions] = useState<string[]>([]);
-  const [lessons, setLessons, ] = useState<Lesson[]>([]);
+  const [lessons, setLessons] = useState<Lesson[]>([]);
+  const [marketplaceLessons, setMarketplaceLessons] = useState<Lesson[]>([]);
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
@@ -86,6 +88,8 @@ export default function Home() {
   const [isAddingClient, setIsAddingClient] = useState(false);
   const [feedbackDrafts, setFeedbackDrafts] = useState<Record<string, string>>({});
   const [isSendingFeedback, setIsSendingFeedback] = useState<Record<string, boolean>>({});
+  const [marketplaceQuery, setMarketplaceQuery] = useState('');
+  const [marketplaceCategory, setMarketplaceCategory] = useState('All');
 
   const [generatedMandala, setGeneratedMandala] = useState<{ centerGoal: string; surroundingGoals: string[] } | null>(null);
   const [isGeneratingMandala, setIsGeneratingMandala] = useState(false);
@@ -105,8 +109,14 @@ export default function Home() {
         aiClient.updateConfig(DEFAULT_AI_CLIENT_CONFIG);
       }
     }
-    FirestoreService.getAllLessons().then(setLessons).catch(console.error);
-  }, []);
+    if (user?.uid) {
+      FirestoreService.getLessonsForUser(user.uid).then(setLessons).catch(console.error);
+      FirestoreService.getPublicLessons().then(setMarketplaceLessons).catch(console.error);
+    } else {
+      setLessons([]);
+      setMarketplaceLessons([]);
+    }
+  }, [user]);
 
   // Effect to load user data (including AI config from Firestore)
   useEffect(() => {
@@ -479,6 +489,17 @@ export default function Home() {
   const activeTeamComments = activeTeam?.comments ?? [];
   const sortedTeamComments = [...activeTeamComments].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   const isCoach = data?.role === 'coach';
+  const marketplaceCategories = Array.from(new Set(
+    marketplaceLessons.map(lesson => lesson.category?.trim() || 'Uncategorized')
+  )).sort();
+  const filteredMarketplaceLessons = marketplaceLessons.filter((lesson) => {
+    const matchesCategory = marketplaceCategory === 'All'
+      || (lesson.category?.trim() || 'Uncategorized') === marketplaceCategory;
+    const query = marketplaceQuery.trim().toLowerCase();
+    if (!query) return matchesCategory;
+    const haystack = `${lesson.title} ${lesson.description} ${lesson.authorName || ''}`.toLowerCase();
+    return matchesCategory && haystack.includes(query);
+  });
   const activeTeamProgress = activeTeam ? computeMandalaProgress(activeTeam.sharedMandala) : null;
   const xpSeries7 = buildXpSeries(7);
   const weeklyXpTotal = xpSeries7.reduce((sum, entry) => sum + entry.xp, 0);
@@ -787,9 +808,38 @@ export default function Home() {
 
   const handleImportLessons = async (importedLessons: Lesson[]) => {
     if (!user) return;
-    await FirestoreService.importLessons(importedLessons);
-    const updatedLessons = await FirestoreService.getAllLessons();
+    await FirestoreService.importLessons(importedLessons, {
+      id: user.uid,
+      name: user.displayName || 'User'
+    });
+    const updatedLessons = await FirestoreService.getLessonsForUser(user.uid);
     setLessons(updatedLessons);
+  };
+
+  const handleImportMarketplaceLesson = async (lesson: Lesson) => {
+    if (!user) return;
+    const copiedLesson: Lesson = {
+      ...lesson,
+      id: `lesson-${Date.now()}`,
+      authorId: user.uid,
+      authorName: user.displayName || 'User',
+      isPublic: false
+    };
+    await FirestoreService.importLessons([copiedLesson], {
+      id: user.uid,
+      name: user.displayName || 'User'
+    });
+    const updatedLessons = await FirestoreService.getLessonsForUser(user.uid);
+    setLessons(updatedLessons);
+  };
+
+  const handleUpdateLessonMeta = async (lesson: Lesson, updates: { isPublic?: boolean; category?: string }) => {
+    if (!lesson.id) return;
+    await FirestoreService.updateLessonMeta(lesson.id, updates);
+    const updatedLessons = await FirestoreService.getLessonsForUser(user.uid || '');
+    setLessons(updatedLessons);
+    const updatedMarketplace = await FirestoreService.getPublicLessons();
+    setMarketplaceLessons(updatedMarketplace);
   };
 
   const handleExportMandala = async () => {
@@ -1925,15 +1975,89 @@ export default function Home() {
               progress={data?.lessonProgress?.find(lp => lp.lessonId === selectedLesson.id)}
               onBack={() => setSelectedLesson(null)}
               onCompleteLesson={handleCompleteLesson}
+              isOwner={!selectedLesson.authorId || selectedLesson.authorId === user.uid}
+              onTogglePublish={(lesson, publish) => handleUpdateLessonMeta(lesson, { isPublic: publish })}
+              onUpdateCategory={(lesson, category) => handleUpdateLessonMeta(lesson, { category })}
             />
           ) : (
-            <LessonList
-              lessons={lessons}
-              lessonProgress={data?.lessonProgress || []}
-              tigerLevel={data?.tiger.level || 1}
-              onStartLesson={handleStartLesson}
-              onViewLesson={setSelectedLesson}
-            />
+            <Tabs defaultValue="my-lessons" className="w-full">
+              <TabsList className="grid w-full grid-cols-2 glass-panel rounded-xl">
+                <TabsTrigger value="my-lessons" className="text-white data-[state=active]:bg-white/20">My Lessons</TabsTrigger>
+                <TabsTrigger value="marketplace" className="text-white data-[state=active]:bg-white/20">Marketplace</TabsTrigger>
+              </TabsList>
+              <TabsContent value="my-lessons" className="mt-4">
+                <LessonList
+                  lessons={lessons}
+                  lessonProgress={data?.lessonProgress || []}
+                  tigerLevel={data?.tiger.level || 1}
+                  onStartLesson={handleStartLesson}
+                  onViewLesson={setSelectedLesson}
+                />
+              </TabsContent>
+              <TabsContent value="marketplace" className="mt-4">
+                <div className="flex flex-col md:flex-row gap-3 mb-4">
+                  <Input
+                    value={marketplaceQuery}
+                    onChange={(e) => setMarketplaceQuery(e.target.value)}
+                    placeholder="Search lessons..."
+                    className="md:w-1/2"
+                  />
+                  <Select
+                    value={marketplaceCategory}
+                    onValueChange={setMarketplaceCategory}
+                  >
+                    <SelectTrigger className="md:w-1/2">
+                      <SelectValue placeholder="Category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="All">All categories</SelectItem>
+                      {marketplaceCategories.map((category) => (
+                        <SelectItem key={category} value={category}>{category}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-4">
+                  {filteredMarketplaceLessons.length > 0 ? (
+                    filteredMarketplaceLessons.map((lesson) => (
+                      <Card key={lesson.id} className="glass-panel">
+                        <CardHeader className="pb-2">
+                          <div className="flex items-start justify-between gap-4">
+                            <div>
+                              <CardTitle className="text-base">{lesson.title}</CardTitle>
+                              <div className="text-xs text-white/60 mt-1">
+                                {lesson.authorName ? `by ${lesson.authorName}` : 'Community'}
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              <Badge variant="secondary" className="text-[10px]">Public</Badge>
+                              <Badge variant="outline" className="text-[10px]">
+                                {lesson.category?.trim() || 'Uncategorized'}
+                              </Badge>
+                            </div>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                          <div className="text-xs text-white/70">{lesson.description}</div>
+                          <div className="flex items-center justify-between text-xs text-white/60">
+                            <span>Lvl {lesson.requiredLevel}</span>
+                            <span>{lesson.xp} XP</span>
+                          </div>
+                          <Button
+                            variant="outline"
+                            onClick={() => handleImportMarketplaceLesson(lesson)}
+                          >
+                            Import to my lessons
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    ))
+                  ) : (
+                    <div className="text-xs text-white/60">No lessons found.</div>
+                  )}
+                </div>
+              </TabsContent>
+            </Tabs>
           )}
         </TabsContent>
       </Tabs>

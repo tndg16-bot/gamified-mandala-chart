@@ -60,7 +60,8 @@ const mockUpdateAiConfig = jest.fn();
 const mockUpdateNotificationConfig = jest.fn();
 const mockUpdateUserRole = jest.fn();
 const mockAddPushToken = jest.fn();
-const mockGetAllLessons = jest.fn(() => Promise.resolve([]));
+const mockGetLessonsForUser = jest.fn(() => Promise.resolve([]));
+const mockGetPublicLessons = jest.fn(() => Promise.resolve([]));
 const mockStartLesson = jest.fn();
 const mockCompleteLesson = jest.fn();
 const mockImportLessons = jest.fn();
@@ -73,7 +74,8 @@ jest.mock('@/lib/firestore_service', () => ({
     updateNotificationConfig: (...args: any[]) => mockUpdateNotificationConfig(...args),
     updateUserRole: (...args: any[]) => mockUpdateUserRole(...args),
     addPushToken: (...args: any[]) => mockAddPushToken(...args),
-    getAllLessons: (...args: any[]) => mockGetAllLessons(...args),
+    getLessonsForUser: (...args: any[]) => mockGetLessonsForUser(...args),
+    getPublicLessons: (...args: any[]) => mockGetPublicLessons(...args),
     startLesson: (...args: any[]) => mockStartLesson(...args),
     completeLesson: (...args: any[]) => mockCompleteLesson(...args),
     importLessons: (...args: any[]) => mockImportLessons(...args),

@@ -241,6 +241,21 @@ export const FirestoreService = {
         return snapshot.docs.map(doc => doc.data() as Lesson);
     },
 
+    async getPublicLessons(): Promise<Lesson[]> {
+        const lessonsRef = collection(db, "lessons");
+        const q = query(lessonsRef, where("isPublic", "==", true));
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(doc => doc.data() as Lesson);
+    },
+
+    async getLessonsForUser(userId: string): Promise<Lesson[]> {
+        const lessonsRef = collection(db, "lessons");
+        const snapshot = await getDocs(lessonsRef);
+        return snapshot.docs
+            .map(doc => doc.data() as Lesson)
+            .filter(lesson => !lesson.authorId || lesson.authorId === userId);
+    },
+
     async startLesson(user: User, currentData: AppData, lessonId: string): Promise<AppData> {
         if (!user.uid) throw new Error("User ID missing");
 
@@ -290,12 +305,27 @@ export const FirestoreService = {
         return newData;
     },
 
-    async importLessons(lessons: Lesson[]): Promise<void> {
+    async importLessons(lessons: Lesson[], author?: { id: string; name: string }): Promise<void> {
         const lessonsRef = collection(db, "lessons");
 
         for (const lesson of lessons) {
-            await addDoc(lessonsRef, lesson);
+            await addDoc(lessonsRef, {
+                ...lesson,
+                authorId: author?.id || lesson.authorId,
+                authorName: author?.name || lesson.authorName,
+                isPublic: lesson.isPublic ?? false,
+                category: lesson.category
+            });
         }
+    },
+
+    async updateLessonMeta(lessonId: string, updates: { isPublic?: boolean; category?: string }): Promise<void> {
+        const lessonsRef = collection(db, "lessons");
+        const q = query(lessonsRef, where("id", "==", lessonId), limit(1));
+        const snapshot = await getDocs(q);
+        if (snapshot.empty) return;
+        const docRef = snapshot.docs[0].ref;
+        await updateDoc(docRef, updates);
     },
 
     async updateObsidianConfig(user: User, exportPath: string, autoSync: boolean): Promise<void> {

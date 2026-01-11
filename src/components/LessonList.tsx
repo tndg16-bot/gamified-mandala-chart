@@ -41,6 +41,11 @@ export function LessonList({ lessons, lessonProgress, tigerLevel, onStartLesson,
                                             <Icon className="w-3 h-3 mr-1" />
                                             {label}
                                         </Badge>
+                                        {lesson.isPublic && (
+                                            <Badge variant="secondary" className="text-xs">
+                                                Public
+                                            </Badge>
+                                        )}
                                         <Badge variant="outline" className="text-xs">
                                             Lvl {lesson.requiredLevel}
                                         </Badge>

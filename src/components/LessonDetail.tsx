@@ -1,7 +1,9 @@
+import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
+import { Input } from "@/components/ui/input"
 import { Lesson, LessonProgress } from "@/lib/types"
 import { ArrowLeft, CheckCircle2, Trophy, Clock } from "lucide-react"
 
@@ -10,11 +12,27 @@ interface LessonDetailProps {
     progress: LessonProgress | undefined
     onBack: () => void
     onCompleteLesson: (lesson: Lesson) => void
+    isOwner?: boolean
+    onTogglePublish?: (lesson: Lesson, publish: boolean) => void
+    onUpdateCategory?: (lesson: Lesson, category: string) => void
 }
 
-export function LessonDetail({ lesson, progress, onBack, onCompleteLesson }: LessonDetailProps) {
+export function LessonDetail({
+    lesson,
+    progress,
+    onBack,
+    onCompleteLesson,
+    isOwner,
+    onTogglePublish,
+    onUpdateCategory
+}: LessonDetailProps) {
     const isCompleted = progress?.completed;
     const isStarted = progress?.startedAt;
+    const [category, setCategory] = useState(lesson.category || "");
+
+    useEffect(() => {
+        setCategory(lesson.category || "");
+    }, [lesson.category, lesson.id]);
 
     return (
         <div className="max-w-4xl mx-auto space-y-4">
@@ -34,6 +52,9 @@ export function LessonDetail({ lesson, progress, onBack, onCompleteLesson }: Les
                                 <Badge variant="outline">
                                     Lvl {lesson.requiredLevel}
                                 </Badge>
+                                {lesson.isPublic && (
+                                    <Badge variant="secondary">Public</Badge>
+                                )}
                             </div>
                             <CardTitle className="text-2xl">{lesson.title}</CardTitle>
                             <CardDescription className="mt-2">
@@ -68,6 +89,27 @@ export function LessonDetail({ lesson, progress, onBack, onCompleteLesson }: Les
                                 {lesson.content}
                             </div>
                         </div>
+
+                        {isOwner && (
+                            <div className="rounded-md border border-white/10 bg-white/5 p-4 space-y-2">
+                                <div className="text-sm font-semibold">Publishing</div>
+                                <div className="flex flex-col sm:flex-row gap-2">
+                                    <Input
+                                        value={category}
+                                        onChange={(e) => setCategory(e.target.value)}
+                                        onBlur={() => onUpdateCategory?.(lesson, category.trim())}
+                                        placeholder="Category (e.g. Productivity)"
+                                        className="flex-1"
+                                    />
+                                    <Button
+                                        variant={lesson.isPublic ? "outline" : "default"}
+                                        onClick={() => onTogglePublish?.(lesson, !lesson.isPublic)}
+                                    >
+                                        {lesson.isPublic ? "Unpublish" : "Publish"}
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
 
                         {isCompleted && (
                             <div className="flex items-center gap-2 text-green-600 bg-green-50 p-4 rounded-lg">
