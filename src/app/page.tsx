@@ -60,6 +60,7 @@ export default function Home() {
   const [exporting, setExporting] = useState(false);
   const [importingMandala, setImportingMandala] = useState(false);
   const [importingTasks, setImportingTasks] = useState(false);
+  const [isSyncingObsidian, setIsSyncingObsidian] = useState(false);
   const [xpRange, setXpRange] = useState<'7' | '30'>('7');
   const [recentBadge, setRecentBadge] = useState<{ id: string; title: string; description: string } | null>(null);
   const [journalDraft, setJournalDraft] = useState({
@@ -972,6 +973,39 @@ export default function Home() {
     }
   };
 
+  const handleSyncObsidian = async () => {
+    if (!user) return;
+    setIsSyncingObsidian(true);
+    try {
+      let workingData = await FirestoreService.loadUserData(user);
+      const updatedMandala = await importMandalaFromObsidian(workingData.mandala, workingData.obsidian?.exportPath);
+      if (updatedMandala) {
+        workingData = { ...workingData, mandala: updatedMandala };
+      }
+      const tasksResult = await importTasksFromObsidian(workingData, workingData.obsidian?.exportPath);
+      if (tasksResult) {
+        workingData = tasksResult.data;
+      }
+      await FirestoreService.saveUserData(user, workingData);
+      setData(workingData);
+
+      await exportMandalaToMarkdown(workingData);
+      await exportTasksToMarkdown(workingData);
+
+      if (tasksResult) {
+        const skippedText = tasksResult.skipped > 0 ? ` (skipped ${tasksResult.skipped})` : '';
+        alert(`Synced with Obsidian. Imported ${tasksResult.imported} tasks${skippedText}.`);
+      } else {
+        alert('Synced with Obsidian.');
+      }
+    } catch (error) {
+      console.error('Obsidian sync failed:', error);
+      alert('Failed to sync with Obsidian. Please try again.');
+    } finally {
+      setIsSyncingObsidian(false);
+    }
+  };
+
   const handleCreateTeam = async () => {
     if (!user || !data) return;
     const trimmed = teamName.trim();
@@ -1341,6 +1375,15 @@ export default function Home() {
               className="text-xs"
             >
               📊 Export Mandala
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSyncObsidian}
+              disabled={isSyncingObsidian}
+              className="text-xs"
+            >
+              {isSyncingObsidian ? 'Syncing...' : 'Sync Now'}
             </Button>
             <Button
               variant="outline"
