@@ -81,6 +81,13 @@ export type JournalSummary = {
     entryDates: string[];
 };
 
+export type UserBehaviorStats = {
+    lastActivityAt?: string;
+    lastResetAt?: string;
+    activityByHour: Record<string, number>;
+    categoryCompletions: Record<string, number>;
+};
+
 export type UserRole = 'coach' | 'client';
 
 export type CoachFeedback = {
@@ -126,6 +133,7 @@ export type AppData = {
     clientIds?: string[];
     coachFeedback?: CoachFeedback[];
     purchasedLessonIds?: string[];
+    behaviorStats?: UserBehaviorStats;
 };
 
 export type ChatMessage = {

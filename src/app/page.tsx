@@ -522,6 +522,13 @@ export default function Home() {
   const monthlyAvgLength = monthlyEntries.length > 0
     ? Math.round(monthlyEntries.reduce((sum, entry) => sum + entryTextLength(entry), 0) / monthlyEntries.length)
     : 0;
+  const behaviorStats = data?.behaviorStats;
+  const activityByHour = behaviorStats?.activityByHour || {};
+  const categoryCompletions = behaviorStats?.categoryCompletions || {};
+  const topCategory = Object.entries(categoryCompletions)
+    .sort((a, b) => b[1] - a[1])[0]?.[0];
+  const peakHour = Object.entries(activityByHour)
+    .sort((a, b) => b[1] - a[1])[0]?.[0];
 
   const badgeDefinitions = [
     {
@@ -845,6 +852,18 @@ export default function Home() {
     setLessons(updatedLessons);
     const updatedMarketplace = await FirestoreService.getPublicLessons();
     setMarketplaceLessons(updatedMarketplace);
+  };
+
+  const handleResetBehaviorStats = async () => {
+    if (!user || !data) return;
+    const resetStats = {
+      activityByHour: {},
+      categoryCompletions: {},
+      lastResetAt: new Date().toISOString()
+    };
+    const newData = { ...data, behaviorStats: resetStats };
+    await FirestoreService.saveUserData(user, newData);
+    setData(newData);
   };
 
   const handleBuyLesson = async (lesson: Lesson) => {
@@ -1460,6 +1479,32 @@ export default function Home() {
               </CardContent>
             </Card>
           </div>
+          <Card className="glass-panel mt-4">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Personalized insights</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-xs text-white/80">
+              <div className="flex flex-wrap gap-2">
+                <Badge variant="outline">Peak hour: {peakHour ? `${peakHour}:00` : '—'}</Badge>
+                <Badge variant="outline">Top area: {topCategory || '—'}</Badge>
+              </div>
+              <div className="text-white/70">
+                {peakHour
+                  ? `You tend to be most active around ${peakHour}:00. Try scheduling key tasks then.`
+                  : 'Complete a few tasks to get personalized timing insights.'}
+              </div>
+              <div className="text-white/70">
+                {topCategory
+                  ? `Your strongest area is ${topCategory}. Consider pushing a smaller task in another area to balance progress.`
+                  : 'Finish tasks across areas to build personalized recommendations.'}
+              </div>
+              <div>
+                <Button variant="outline" size="sm" onClick={handleResetBehaviorStats}>
+                  Reset learning
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="achievements" className="mt-4">

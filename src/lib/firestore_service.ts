@@ -63,7 +63,11 @@ const DEFAULT_DATA: AppData = {
     role: 'client',
     clientIds: [],
     coachFeedback: [],
-    purchasedLessonIds: []
+    purchasedLessonIds: [],
+    behaviorStats: {
+        activityByHour: {},
+        categoryCompletions: {}
+    }
 };
 
 export const FirestoreService = {
@@ -90,7 +94,8 @@ export const FirestoreService = {
                 role: userData.role || DEFAULT_DATA.role,
                 clientIds: userData.clientIds || DEFAULT_DATA.clientIds,
                 coachFeedback: userData.coachFeedback || DEFAULT_DATA.coachFeedback,
-                purchasedLessonIds: userData.purchasedLessonIds || DEFAULT_DATA.purchasedLessonIds
+                purchasedLessonIds: userData.purchasedLessonIds || DEFAULT_DATA.purchasedLessonIds,
+                behaviorStats: userData.behaviorStats || DEFAULT_DATA.behaviorStats
             };
         } else {
             // Initialize new user data
@@ -122,7 +127,8 @@ export const FirestoreService = {
             role: userData.role || DEFAULT_DATA.role,
             clientIds: userData.clientIds || DEFAULT_DATA.clientIds,
             coachFeedback: userData.coachFeedback || DEFAULT_DATA.coachFeedback,
-            purchasedLessonIds: userData.purchasedLessonIds || DEFAULT_DATA.purchasedLessonIds
+            purchasedLessonIds: userData.purchasedLessonIds || DEFAULT_DATA.purchasedLessonIds,
+            behaviorStats: userData.behaviorStats || DEFAULT_DATA.behaviorStats
         };
     },
 
@@ -213,6 +219,18 @@ export const FirestoreService = {
                     newData.tiger.streakDays = 1;
                 }
                 newData.tiger.lastLogin = today.toISOString();
+
+                if (!newData.behaviorStats) {
+                    newData.behaviorStats = {
+                        activityByHour: {},
+                        categoryCompletions: {}
+                    };
+                }
+                const hourKey = String(today.getHours());
+                newData.behaviorStats.activityByHour[hourKey] = (newData.behaviorStats.activityByHour[hourKey] || 0) + 1;
+                const category = section.centerCell.title || "General";
+                newData.behaviorStats.categoryCompletions[category] = (newData.behaviorStats.categoryCompletions[category] || 0) + 1;
+                newData.behaviorStats.lastActivityAt = today.toISOString();
             } else {
                 newData.tiger.xp = Math.max(0, newData.tiger.xp - 10);
                 historyEntry.xp = Math.max(0, historyEntry.xp - 10);
@@ -303,6 +321,18 @@ export const FirestoreService = {
         if (Math.floor(newData.tiger.xp / 100) > newData.tiger.level - 1) {
             newData.tiger.level += 1;
         }
+
+        if (!newData.behaviorStats) {
+            newData.behaviorStats = {
+                activityByHour: {},
+                categoryCompletions: {}
+            };
+        }
+        const now = new Date();
+        const hourKey = String(now.getHours());
+        newData.behaviorStats.activityByHour[hourKey] = (newData.behaviorStats.activityByHour[hourKey] || 0) + 1;
+        newData.behaviorStats.categoryCompletions["Lessons"] = (newData.behaviorStats.categoryCompletions["Lessons"] || 0) + 1;
+        newData.behaviorStats.lastActivityAt = now.toISOString();
 
         await this.saveUserData(user, newData);
         return newData;
