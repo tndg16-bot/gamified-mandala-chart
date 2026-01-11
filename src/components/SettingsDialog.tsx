@@ -255,9 +255,21 @@ export function SettingsDialog({ open, onOpenChange, obsidianPath, autoSync, aiC
                                     type="checkbox"
                                     id="notif-enabled"
                                     checked={localNotificationConfig.enabled}
-                                    onChange={(e) =>
-                                        setLocalNotificationConfig(prev => ({ ...prev, enabled: e.target.checked }))
-                                    }
+                                    onChange={async (e) => {
+                                        const checked = e.target.checked;
+                                        if (checked && typeof Notification !== 'undefined') {
+                                            const permission = await Notification.requestPermission();
+                                            if (permission !== 'granted') {
+                                                alert('Notification permission denied.');
+                                                return;
+                                            }
+                                        }
+                                        if (checked && typeof Notification === 'undefined') {
+                                            alert('Notifications are not supported in this browser.');
+                                            return;
+                                        }
+                                        setLocalNotificationConfig(prev => ({ ...prev, enabled: checked }));
+                                    }}
                                     className="h-4 w-4"
                                 />
                                 <span className="text-sm text-muted-foreground">

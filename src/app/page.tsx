@@ -211,7 +211,7 @@ export default function Home() {
 
 
   useEffect(() => {
-    if (!data?.notifications?.enabled || !data.notifications.pushEnabled) return;
+    if (!data?.notifications?.enabled) return;
     if (typeof window === 'undefined' || typeof Notification === 'undefined') return;
 
     const config = data.notifications;
