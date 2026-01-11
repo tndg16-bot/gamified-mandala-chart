@@ -87,6 +87,7 @@ describe('SettingsDialog', () => {
   };
   const defaultRole = 'client';
   const defaultSlackUserId = 'U12345678';
+  const defaultLineUserId = 'Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx';
 
   const mockOnSave = jest.fn();
   const mockOnOpenChange = jest.fn();
@@ -106,6 +107,7 @@ describe('SettingsDialog', () => {
         notificationConfig={defaultNotifications}
         role={defaultRole}
         slackUserId={defaultSlackUserId}
+        lineUserId={defaultLineUserId}
         onSave={mockOnSave}
       />
     );
@@ -131,6 +133,7 @@ describe('SettingsDialog', () => {
         notificationConfig={defaultNotifications}
         role={defaultRole}
         slackUserId={defaultSlackUserId}
+        lineUserId={defaultLineUserId}
         onSave={mockOnSave}
       />
     );
@@ -155,6 +158,7 @@ describe('SettingsDialog', () => {
         notificationConfig={defaultNotifications}
         role={defaultRole}
         slackUserId={defaultSlackUserId}
+        lineUserId={defaultLineUserId}
         onSave={mockOnSave}
       />
     );
@@ -180,6 +184,7 @@ describe('SettingsDialog', () => {
         notificationConfig={defaultNotifications}
         role={defaultRole}
         slackUserId={defaultSlackUserId}
+        lineUserId={defaultLineUserId}
         onSave={mockOnSave}
       />
     );
@@ -201,6 +206,7 @@ describe('SettingsDialog', () => {
         notificationConfig={defaultNotifications}
         role={defaultRole}
         slackUserId={defaultSlackUserId}
+        lineUserId={defaultLineUserId}
         onSave={mockOnSave}
       />
     );
@@ -229,7 +235,8 @@ describe('SettingsDialog', () => {
         },
         defaultNotifications,
         defaultRole,
-        defaultSlackUserId
+        defaultSlackUserId,
+        defaultLineUserId
       );
     });
 
@@ -247,6 +254,7 @@ describe('SettingsDialog', () => {
         notificationConfig={defaultNotifications}
         role={defaultRole}
         slackUserId={defaultSlackUserId}
+        lineUserId={defaultLineUserId}
         onSave={mockOnSave}
       />
     );

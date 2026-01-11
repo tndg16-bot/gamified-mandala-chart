@@ -23,23 +23,26 @@ interface SettingsDialogProps {
     notificationConfig: NotificationConfig;
     role: UserRole;
     slackUserId: string;
+    lineUserId: string;
     onSave: (
         path: string,
         autoSync: boolean,
         aiConfig: AiConfig,
         notifications: NotificationConfig,
         role: UserRole,
-        slackUserId: string
+        slackUserId: string,
+        lineUserId: string
     ) => Promise<void>; // onSaveのシグネチャ変更
 }
 
-export function SettingsDialog({ open, onOpenChange, obsidianPath, autoSync, aiConfig, notificationConfig, role, slackUserId, onSave }: SettingsDialogProps) {
+export function SettingsDialog({ open, onOpenChange, obsidianPath, autoSync, aiConfig, notificationConfig, role, slackUserId, lineUserId, onSave }: SettingsDialogProps) {
     const [localPath, setLocalPath] = useState(obsidianPath);
     const [localAutoSync, setLocalAutoSync] = useState(autoSync);
     const [localAiConfig, setLocalAiConfig] = useState<AiConfig>(aiConfig); // localAiConfigを追加
     const [localNotificationConfig, setLocalNotificationConfig] = useState<NotificationConfig>(notificationConfig);
     const [localRole, setLocalRole] = useState<UserRole>(role);
     const [localSlackUserId, setLocalSlackUserId] = useState(slackUserId);
+    const [localLineUserId, setLocalLineUserId] = useState(lineUserId);
     const [saving, setSaving] = useState(false);
 
     const handleSave = async () => {
@@ -51,7 +54,8 @@ export function SettingsDialog({ open, onOpenChange, obsidianPath, autoSync, aiC
                 localAiConfig,
                 localNotificationConfig,
                 localRole,
-                localSlackUserId.trim()
+                localSlackUserId.trim(),
+                localLineUserId.trim()
             ); // localAiConfigを渡す
             onOpenChange(false);
         } catch (error) {
@@ -219,6 +223,24 @@ export function SettingsDialog({ open, onOpenChange, obsidianPath, autoSync, aiC
                         </div>
                         <div className="text-xs text-muted-foreground">
                             Set your Slack User ID to enable slash command integration.
+                        </div>
+                    </div>
+                    <div className="space-y-2 mt-6">
+                        <h4 className="font-semibold text-lg border-b pb-2">LINE</h4>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="line-user-id" className="text-right">
+                                User ID
+                            </Label>
+                            <Input
+                                id="line-user-id"
+                                value={localLineUserId}
+                                onChange={(e) => setLocalLineUserId(e.target.value)}
+                                className="col-span-3"
+                                placeholder="Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                            />
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                            Set your LINE User ID to enable webhook integration.
                         </div>
                     </div>
                     {/* Notification Settings */}

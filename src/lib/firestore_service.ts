@@ -68,7 +68,8 @@ const DEFAULT_DATA: AppData = {
         activityByHour: {},
         categoryCompletions: {}
     },
-    slackUserId: ""
+    slackUserId: "",
+    lineUserId: ""
 };
 
 export const FirestoreService = {
@@ -97,7 +98,8 @@ export const FirestoreService = {
                 coachFeedback: userData.coachFeedback || DEFAULT_DATA.coachFeedback,
                 purchasedLessonIds: userData.purchasedLessonIds || DEFAULT_DATA.purchasedLessonIds,
                 behaviorStats: userData.behaviorStats || DEFAULT_DATA.behaviorStats,
-                slackUserId: userData.slackUserId || DEFAULT_DATA.slackUserId
+                slackUserId: userData.slackUserId || DEFAULT_DATA.slackUserId,
+                lineUserId: userData.lineUserId || DEFAULT_DATA.lineUserId
             };
         } else {
             // Initialize new user data
@@ -131,7 +133,8 @@ export const FirestoreService = {
             coachFeedback: userData.coachFeedback || DEFAULT_DATA.coachFeedback,
             purchasedLessonIds: userData.purchasedLessonIds || DEFAULT_DATA.purchasedLessonIds,
             behaviorStats: userData.behaviorStats || DEFAULT_DATA.behaviorStats,
-            slackUserId: userData.slackUserId || DEFAULT_DATA.slackUserId
+            slackUserId: userData.slackUserId || DEFAULT_DATA.slackUserId,
+            lineUserId: userData.lineUserId || DEFAULT_DATA.lineUserId
         };
     },
 
@@ -422,6 +425,12 @@ export const FirestoreService = {
         if (!user.uid) throw new Error("User ID missing");
         const userDocRef = doc(db, "users", user.uid);
         await updateDoc(userDocRef, { slackUserId });
+    },
+
+    async updateLineUserId(user: User, lineUserId: string): Promise<void> {
+        if (!user.uid) throw new Error("User ID missing");
+        const userDocRef = doc(db, "users", user.uid);
+        await updateDoc(userDocRef, { lineUserId });
     },
 
     async addPushToken(user: User, token: string): Promise<void> {

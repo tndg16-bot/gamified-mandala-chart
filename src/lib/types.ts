@@ -135,6 +135,7 @@ export type AppData = {
     purchasedLessonIds?: string[];
     behaviorStats?: UserBehaviorStats;
     slackUserId?: string;
+    lineUserId?: string;
 };
 
 export type ChatMessage = {

@@ -1152,7 +1152,8 @@ export default function Home() {
     aiConfig: AiConfig,
     notifications: NotificationConfig,
     role: AppData["role"],
-    slackUserId: string
+    slackUserId: string,
+    lineUserId: string
   ) => {
     if (!user) return;
     try {
@@ -1163,6 +1164,7 @@ export default function Home() {
         await FirestoreService.updateUserRole(user, role);
       }
       await FirestoreService.updateSlackUserId(user, slackUserId);
+      await FirestoreService.updateLineUserId(user, lineUserId);
 
       if (notifications.pushEnabled) {
         try {
@@ -1176,7 +1178,7 @@ export default function Home() {
           console.error('Failed to register push notifications:', error);
           alert('Failed to enable push notifications. Check your VAPID key and service worker config.');
         }
-      }設定をFirestoreに保存
+      }
 
       // localStorageにもAI設定を保存
       if (typeof window !== 'undefined') {
@@ -2407,6 +2409,7 @@ export default function Home() {
         notificationConfig={data?.notifications || DEFAULT_NOTIFICATION_CONFIG} // aiConfigを追加
         role={data?.role || 'client'}
         slackUserId={data?.slackUserId || ''}
+        lineUserId={data?.lineUserId || ''}
         onSave={handleSaveSettings}
       />
 
