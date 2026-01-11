@@ -226,6 +226,13 @@ export const FirestoreService = {
                         categoryCompletions: {}
                     };
                 }
+                const decay = 0.9;
+                Object.keys(newData.behaviorStats.activityByHour).forEach((key) => {
+                    newData.behaviorStats.activityByHour[key] = newData.behaviorStats.activityByHour[key] * decay;
+                });
+                Object.keys(newData.behaviorStats.categoryCompletions).forEach((key) => {
+                    newData.behaviorStats.categoryCompletions[key] = newData.behaviorStats.categoryCompletions[key] * decay;
+                });
                 const hourKey = String(today.getHours());
                 newData.behaviorStats.activityByHour[hourKey] = (newData.behaviorStats.activityByHour[hourKey] || 0) + 1;
                 const category = section.centerCell.title || "General";
@@ -328,6 +335,13 @@ export const FirestoreService = {
                 categoryCompletions: {}
             };
         }
+        const decay = 0.9;
+        Object.keys(newData.behaviorStats.activityByHour).forEach((key) => {
+            newData.behaviorStats.activityByHour[key] = newData.behaviorStats.activityByHour[key] * decay;
+        });
+        Object.keys(newData.behaviorStats.categoryCompletions).forEach((key) => {
+            newData.behaviorStats.categoryCompletions[key] = newData.behaviorStats.categoryCompletions[key] * decay;
+        });
         const now = new Date();
         const hourKey = String(now.getHours());
         newData.behaviorStats.activityByHour[hourKey] = (newData.behaviorStats.activityByHour[hourKey] || 0) + 1;

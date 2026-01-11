@@ -529,6 +529,7 @@ export default function Home() {
     .sort((a, b) => b[1] - a[1])[0]?.[0];
   const peakHour = Object.entries(activityByHour)
     .sort((a, b) => b[1] - a[1])[0]?.[0];
+  const lastResetAt = behaviorStats?.lastResetAt;
 
   const badgeDefinitions = [
     {
@@ -1498,7 +1499,8 @@ export default function Home() {
                   ? `Your strongest area is ${topCategory}. Consider pushing a smaller task in another area to balance progress.`
                   : 'Finish tasks across areas to build personalized recommendations.'}
               </div>
-              <div>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 text-white/60 text-[11px]">
+                <span>{lastResetAt ? `Learning reset: ${new Date(lastResetAt).toLocaleDateString()}` : 'Learning adapts to recent activity.'}</span>
                 <Button variant="outline" size="sm" onClick={handleResetBehaviorStats}>
                   Reset learning
                 </Button>
