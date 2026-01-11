@@ -369,14 +369,15 @@ export const FirestoreService = {
                 isPublic: lesson.isPublic ?? false,
                 category: lesson.category,
                 priceCents: lesson.priceCents,
-                currency: lesson.currency
+                currency: lesson.currency,
+                tags: lesson.tags
             });
         }
     },
 
     async updateLessonMeta(
         lessonId: string,
-        updates: { isPublic?: boolean; category?: string; priceCents?: number; currency?: string }
+        updates: { isPublic?: boolean; category?: string; priceCents?: number; currency?: string; tags?: string[] }
     ): Promise<void> {
         const lessonsRef = collection(db, "lessons");
         const q = query(lessonsRef, where("id", "==", lessonId), limit(1));

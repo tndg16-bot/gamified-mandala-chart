@@ -845,7 +845,7 @@ export default function Home() {
 
   const handleUpdateLessonMeta = async (
     lesson: Lesson,
-    updates: { isPublic?: boolean; category?: string; priceCents?: number; currency?: string }
+    updates: { isPublic?: boolean; category?: string; priceCents?: number; currency?: string; tags?: string[] }
   ) => {
     if (!lesson.id) return;
     await FirestoreService.updateLessonMeta(lesson.id, updates);
@@ -2091,6 +2091,7 @@ export default function Home() {
               onTogglePublish={(lesson, publish) => handleUpdateLessonMeta(lesson, { isPublic: publish })}
               onUpdateCategory={(lesson, category) => handleUpdateLessonMeta(lesson, { category })}
               onUpdatePrice={(lesson, priceCents) => handleUpdateLessonMeta(lesson, { priceCents, currency: lesson.currency || 'usd' })}
+              onUpdateTags={(lesson, tags) => handleUpdateLessonMeta(lesson, { tags })}
             />
           ) : (
             <Tabs defaultValue="my-lessons" className="w-full">

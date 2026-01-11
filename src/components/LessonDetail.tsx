@@ -16,6 +16,7 @@ interface LessonDetailProps {
     onTogglePublish?: (lesson: Lesson, publish: boolean) => void
     onUpdateCategory?: (lesson: Lesson, category: string) => void
     onUpdatePrice?: (lesson: Lesson, priceCents: number) => void
+    onUpdateTags?: (lesson: Lesson, tags: string[]) => void
 }
 
 export function LessonDetail({
@@ -25,7 +26,9 @@ export function LessonDetail({
     onCompleteLesson,
     isOwner,
     onTogglePublish,
-    onUpdateCategory
+    onUpdateCategory,
+    onUpdatePrice,
+    onUpdateTags
 }: LessonDetailProps) {
     const isCompleted = progress?.completed;
     const isStarted = progress?.startedAt;
@@ -33,11 +36,13 @@ export function LessonDetail({
     const [price, setPrice] = useState(
         lesson.priceCents !== undefined ? String(lesson.priceCents / 100) : ""
     );
+    const [tags, setTags] = useState((lesson.tags || []).join(", "));
 
     useEffect(() => {
         setCategory(lesson.category || "");
         setPrice(lesson.priceCents !== undefined ? String(lesson.priceCents / 100) : "");
-    }, [lesson.category, lesson.id]);
+        setTags((lesson.tags || []).join(", "));
+    }, [lesson.category, lesson.id, lesson.priceCents, lesson.tags]);
 
     return (
         <div className="max-w-4xl mx-auto space-y-4">
@@ -120,6 +125,19 @@ export function LessonDetail({
                                         }}
                                         placeholder="Price (USD)"
                                         className="w-32"
+                                    />
+                                    <Input
+                                        value={tags}
+                                        onChange={(e) => setTags(e.target.value)}
+                                        onBlur={() => {
+                                            const parsedTags = tags
+                                                .split(",")
+                                                .map((tag) => tag.trim())
+                                                .filter(Boolean);
+                                            onUpdateTags?.(lesson, parsedTags);
+                                        }}
+                                        placeholder="Tags (comma separated)"
+                                        className="flex-1"
                                     />
                                     <Button
                                         variant={lesson.isPublic ? "outline" : "default"}

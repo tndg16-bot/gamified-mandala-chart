@@ -160,6 +160,7 @@ export type Lesson = {
     category?: string;
     priceCents?: number;
     currency?: string;
+    tags?: string[];
 };
 
 export type LessonProgress = {
