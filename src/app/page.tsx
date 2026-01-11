@@ -8,7 +8,7 @@ import { AiConfig, AppData, CoachFeedback, Lesson, MandalaCell, MandalaChart, No
 import { aiClient, DEFAULT_CONFIG as DEFAULT_AI_CLIENT_CONFIG } from '@/lib/ai_client';
 import { FirestoreService } from '@/lib/firestore_service';
 import { registerPushNotifications } from '@/lib/firebase';
-import { exportMandalaToMarkdown, exportTasksToMarkdown, importMandalaFromObsidian } from '@/app/actions';
+import { exportMandalaToMarkdown, exportTasksToMarkdown, importMandalaFromObsidian, importTasksFromObsidian } from '@/app/actions';
 
 import { useAuth } from '@/components/AuthContext';
 import { LessonImportDialog } from '@/components/LessonImportDialog';
@@ -57,6 +57,7 @@ export default function Home() {
   const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [importingMandala, setImportingMandala] = useState(false);
+  const [importingTasks, setImportingTasks] = useState(false);
   const [xpRange, setXpRange] = useState<'7' | '30'>('7');
   const [recentBadge, setRecentBadge] = useState<{ id: string; title: string; description: string } | null>(null);
   const [journalDraft, setJournalDraft] = useState({
@@ -842,6 +843,30 @@ export default function Home() {
     }
   };
 
+  const handleImportTasks = async () => {
+    if (!data || !user) return;
+    setImportingTasks(true);
+    try {
+      const result = await importTasksFromObsidian(data, data.obsidian?.exportPath);
+      if (!result) {
+        alert('No tasks markdown found in the export path.');
+        return;
+      }
+      await FirestoreService.saveUserData(user, result.data);
+      setData(result.data);
+      if (result.skipped > 0) {
+        alert(`Imported ${result.imported} tasks. Skipped ${result.skipped} (no matching cell).`);
+      } else {
+        alert(`Imported ${result.imported} tasks.`);
+      }
+    } catch (error) {
+      console.error('Import tasks failed:', error);
+      alert('Failed to import tasks. Please try again.');
+    } finally {
+      setImportingTasks(false);
+    }
+  };
+
   const handleCreateTeam = async () => {
     if (!user || !data) return;
     const trimmed = teamName.trim();
@@ -1190,6 +1215,15 @@ export default function Home() {
               className="text-xs"
             >
               📥 Import Mandala
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleImportTasks}
+              disabled={importingTasks}
+              className="text-xs"
+            >
+              📥 Import Tasks
             </Button>
             <Button
               variant="outline"

@@ -378,6 +378,95 @@ export async function importMandalaFromObsidian(
     return parseMandalaMarkdown(content, baseMandala);
 }
 
+function buildCellIndex(data: AppData) {
+    const map = new Map<string, { sectionIndex: number; cellIndex: number }>();
+    data.mandala.surroundingSections.forEach((section, sectionIndex) => {
+        section.surroundingCells.forEach((cell, cellIndex) => {
+            if (!map.has(cell.title)) {
+                map.set(cell.title, { sectionIndex, cellIndex });
+            }
+        });
+    });
+    return map;
+}
+
+function parseTasksMarkdown(content: string) {
+    const tasks: { cellTitle: string; title: string; completed: boolean; difficulty?: string }[] = [];
+    let completed = false;
+
+    content.split(/\r?\n/).forEach((line) => {
+        if (line.startsWith('## ')) {
+            if (line.toLowerCase().includes('done')) {
+                completed = true;
+            } else if (line.toLowerCase().includes('to do')) {
+                completed = false;
+            }
+            return;
+        }
+        const match = line.match(/^- \[\[(.+?)\]\]:\s+(.+)$/);
+        if (!match) return;
+        let title = match[2].trim();
+        let difficulty: string | undefined;
+        const diffMatch = title.match(/\s+\[([SABC])\]$/);
+        if (diffMatch) {
+            difficulty = diffMatch[1];
+            title = title.replace(/\s+\[[SABC]\]$/, '').trim();
+        }
+        tasks.push({ cellTitle: match[1].trim(), title, completed, difficulty });
+    });
+
+    return tasks;
+}
+
+export async function importTasksFromObsidian(
+    data: AppData,
+    obsidianPath?: string
+): Promise<{ data: AppData; imported: number; skipped: number } | null> {
+    const obsidianDir = obsidianPath || '../../Gamified-Mandala-Data';
+    const exportDir = path.resolve(process.cwd(), obsidianDir);
+    const filePath = await getLatestMarkdownFile(exportDir, 'tasks-');
+    if (!filePath) return null;
+
+    const content = await fs.readFile(filePath, 'utf-8');
+    const parsedTasks = parseTasksMarkdown(content);
+    if (parsedTasks.length === 0) {
+        return { data, imported: 0, skipped: 0 };
+    }
+
+    const updatedData = JSON.parse(JSON.stringify(data)) as AppData;
+    const cellIndex = buildCellIndex(updatedData);
+    let imported = 0;
+    let skipped = 0;
+
+    parsedTasks.forEach((task) => {
+        const location = cellIndex.get(task.cellTitle);
+        if (!location) {
+            skipped += 1;
+            return;
+        }
+        const cell = updatedData.mandala.surroundingSections[location.sectionIndex].surroundingCells[location.cellIndex];
+        if (!cell.subTasks) cell.subTasks = [];
+        const existing = cell.subTasks.find((subTask) => subTask.title === task.title);
+        if (existing) {
+            existing.completed = task.completed;
+            if (task.difficulty) {
+                existing.difficulty = task.difficulty as any;
+            }
+        } else {
+            cell.subTasks.push({
+                id: `sub-${Date.now()}-${imported}`,
+                title: task.title,
+                completed: task.completed,
+                difficulty: (task.difficulty as any) || 'B',
+                createdAt: new Date().toISOString()
+            });
+        }
+        imported += 1;
+    });
+
+    return { data: updatedData, imported, skipped };
+}
+
 export async function updateObsidianConfig(exportPath: string, autoSync: boolean): Promise<void> {
     const data = await loadData();
     data.obsidian = {
