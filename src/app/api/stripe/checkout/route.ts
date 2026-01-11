@@ -3,14 +3,15 @@ import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
   const body = await request.json();
-  const { lessonId, title, priceCents, currency } = body as {
+  const { lessonId, title, priceCents, currency, userId } = body as {
     lessonId?: string;
     title?: string;
     priceCents?: number;
     currency?: string;
+    userId?: string;
   };
 
-  if (!lessonId || !title || !priceCents || priceCents <= 0) {
+  if (!lessonId || !title || !priceCents || priceCents <= 0 || !userId) {
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   }
 
@@ -21,7 +22,7 @@ export async function POST(request: Request) {
 
   const stripe = new Stripe(secret, { apiVersion: "2024-06-20" });
   const origin = new URL(request.url).origin;
-  const successUrl = `${origin}/?checkout=success&lessonId=${encodeURIComponent(lessonId)}`;
+  const successUrl = `${origin}/?checkout=success&lessonId=${encodeURIComponent(lessonId)}&session_id={CHECKOUT_SESSION_ID}`;
   const cancelUrl = `${origin}/?checkout=cancel`;
 
   try {
@@ -35,11 +36,12 @@ export async function POST(request: Request) {
             unit_amount: priceCents,
             product_data: {
               name: title,
-              metadata: { lessonId }
+              metadata: { lessonId, userId }
             }
           }
         }
       ],
+      metadata: { lessonId, userId },
       success_url: successUrl,
       cancel_url: cancelUrl
     });

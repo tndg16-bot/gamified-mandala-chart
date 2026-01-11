@@ -62,7 +62,8 @@ const DEFAULT_DATA: AppData = {
     journalSummaries: [],
     role: 'client',
     clientIds: [],
-    coachFeedback: []
+    coachFeedback: [],
+    purchasedLessonIds: []
 };
 
 export const FirestoreService = {
@@ -88,7 +89,8 @@ export const FirestoreService = {
                 journalSummaries: userData.journalSummaries || DEFAULT_DATA.journalSummaries,
                 role: userData.role || DEFAULT_DATA.role,
                 clientIds: userData.clientIds || DEFAULT_DATA.clientIds,
-                coachFeedback: userData.coachFeedback || DEFAULT_DATA.coachFeedback
+                coachFeedback: userData.coachFeedback || DEFAULT_DATA.coachFeedback,
+                purchasedLessonIds: userData.purchasedLessonIds || DEFAULT_DATA.purchasedLessonIds
             };
         } else {
             // Initialize new user data
@@ -119,7 +121,8 @@ export const FirestoreService = {
             journalSummaries: userData.journalSummaries || DEFAULT_DATA.journalSummaries,
             role: userData.role || DEFAULT_DATA.role,
             clientIds: userData.clientIds || DEFAULT_DATA.clientIds,
-            coachFeedback: userData.coachFeedback || DEFAULT_DATA.coachFeedback
+            coachFeedback: userData.coachFeedback || DEFAULT_DATA.coachFeedback,
+            purchasedLessonIds: userData.purchasedLessonIds || DEFAULT_DATA.purchasedLessonIds
         };
     },
 

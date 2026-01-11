@@ -848,7 +848,7 @@ export default function Home() {
   };
 
   const handleBuyLesson = async (lesson: Lesson) => {
-    if (!lesson.priceCents) return;
+    if (!lesson.priceCents || !user) return;
     setPurchasingLessonId(lesson.id);
     try {
       const response = await fetch('/api/stripe/checkout', {
@@ -858,7 +858,8 @@ export default function Home() {
           lessonId: lesson.id,
           title: lesson.title,
           priceCents: lesson.priceCents,
-          currency: lesson.currency || 'usd'
+          currency: lesson.currency || 'usd',
+          userId: user.uid
         })
       });
       if (!response.ok) {
@@ -1078,27 +1079,24 @@ export default function Home() {
   }, [user, isCoach, data?.clientIds]);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const stored = JSON.parse(localStorage.getItem('purchased_lessons') || '[]') as string[];
-    setPurchasedLessons(stored);
-  }, []);
+    setPurchasedLessons(data?.purchasedLessonIds || []);
+  }, [data?.purchasedLessonIds]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    if (!user) return;
     const params = new URLSearchParams(window.location.search);
     const status = params.get('checkout');
-    const lessonId = params.get('lessonId');
-    if (status === 'success' && lessonId) {
-      const updated = Array.from(new Set([...purchasedLessons, lessonId]));
-      localStorage.setItem('purchased_lessons', JSON.stringify(updated));
-      setPurchasedLessons(updated);
+    if (status === 'success') {
+      FirestoreService.loadUserData(user).then(setData).catch(console.error);
       params.delete('checkout');
       params.delete('lessonId');
+      params.delete('session_id');
       const newUrl = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ''}`;
       window.history.replaceState({}, '', newUrl);
       alert('Purchase complete. You can import the lesson.');
     }
-  }, [purchasedLessons]);
+  }, [user]);
 
   const handlePostTeamComment = async () => {
     if (!user || !activeTeam) return;
@@ -2035,7 +2033,7 @@ export default function Home() {
               isOwner={!selectedLesson.authorId || selectedLesson.authorId === user.uid}
               onTogglePublish={(lesson, publish) => handleUpdateLessonMeta(lesson, { isPublic: publish })}
               onUpdateCategory={(lesson, category) => handleUpdateLessonMeta(lesson, { category })}
-              onUpdatePrice={(lesson, priceCents) => handleUpdateLessonMeta(lesson, { priceCents })}
+              onUpdatePrice={(lesson, priceCents) => handleUpdateLessonMeta(lesson, { priceCents, currency: lesson.currency || 'usd' })}
             />
           ) : (
             <Tabs defaultValue="my-lessons" className="w-full">

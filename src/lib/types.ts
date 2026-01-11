@@ -125,6 +125,7 @@ export type AppData = {
     role?: UserRole;
     clientIds?: string[];
     coachFeedback?: CoachFeedback[];
+    purchasedLessonIds?: string[];
 };
 
 export type ChatMessage = {
