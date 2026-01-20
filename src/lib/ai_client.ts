@@ -1,6 +1,6 @@
 import { AiConfig, AiProvider } from './types';
 
-const DEFAULT_CONFIG: AiConfig = {
+export const DEFAULT_CONFIG: AiConfig = {
     provider: 'ollama',
     baseUrl: 'http://localhost:11434',
     model: 'gemma3:1b', // Lightweight model for speed

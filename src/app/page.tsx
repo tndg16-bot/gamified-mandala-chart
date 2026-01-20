@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { CheckCircle2, Circle, Sun } from 'lucide-react';
+import { CheckCircle2, Circle, Sun, Trash2, Pencil } from 'lucide-react';
 
 import { AiConfig, AppData, CoachFeedback, Lesson, MandalaCell, MandalaChart, NotificationConfig, SubTask, Team, TeamComment } from '@/lib/types';
 import { aiClient, DEFAULT_CONFIG as DEFAULT_AI_CLIENT_CONFIG } from '@/lib/ai_client';
@@ -392,6 +392,35 @@ export default function Home() {
     // Play Sound if completed
     // Simplification: Toggle logic logic inside service handles XP, here we just play sound blindly for feedback
     playSuccess();
+
+    // Update local selected cell state
+    const updatedSection = newData.mandala.surroundingSections.find(s => s.id === selectedCell.sectionId);
+    const updatedCell = updatedSection?.surroundingCells.find(c => c.id === selectedCell.cell.id);
+    if (updatedCell) {
+      setSelectedCell({ sectionId: selectedCell.sectionId, cell: updatedCell });
+    }
+  };
+
+  const handleDeleteSubTask = async (subTaskId: string, event: React.MouseEvent) => {
+    event.stopPropagation(); // Prevent toggling when clicking delete
+    if (!selectedCell || !user || !data) return;
+
+    const newData = await FirestoreService.deleteSubTask(user, data, selectedCell.sectionId, selectedCell.cell.id, subTaskId);
+    setData(newData);
+
+    // Update local selected cell state
+    const updatedSection = newData.mandala.surroundingSections.find(s => s.id === selectedCell.sectionId);
+    const updatedCell = updatedSection?.surroundingCells.find(c => c.id === selectedCell.cell.id);
+    if (updatedCell) {
+      setSelectedCell({ sectionId: selectedCell.sectionId, cell: updatedCell });
+    }
+  };
+
+  const handleEditSubTask = async (subTaskId: string, newTitle: string) => {
+    if (!selectedCell || !user || !data) return;
+
+    const newData = await FirestoreService.editSubTask(user, data, selectedCell.sectionId, selectedCell.cell.id, subTaskId, newTitle);
+    setData(newData);
 
     // Update local selected cell state
     const updatedSection = newData.mandala.surroundingSections.find(s => s.id === selectedCell.sectionId);
@@ -2392,9 +2421,44 @@ export default function Home() {
             <div className="h-[200px] w-full rounded-md border p-4 overflow-y-auto">
               <div className="space-y-2">
                 {selectedCell?.cell.subTasks?.map((subTask) => (
-                  <div key={subTask.id} className="flex items-center space-x-2 p-2 hover:bg-accent rounded-md cursor-pointer" onClick={() => handleToggleSubTask(subTask.id)}>
-                    {subTask.completed ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <Circle className="w-4 h-4 text-muted-foreground" />}
-                    <span className={`text-sm ${subTask.completed ? 'line-through text-muted-foreground' : ''}`}>{subTask.title}</span>
+                  <div key={subTask.id} className="flex items-center justify-between p-2 hover:bg-accent rounded-md group">
+                    <div className="flex items-center space-x-2 flex-1 min-w-0">
+                      {subTask.completed ? <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" /> : <Circle className="w-4 h-4 text-muted-foreground flex-shrink-0" />}
+                      <span
+                        className={`text-sm truncate ${subTask.completed ? 'line-through text-muted-foreground' : ''}`}
+                        onDoubleClick={() => {
+                          const newTitle = prompt("Edit task:", subTask.title);
+                          if (newTitle && newTitle.trim()) {
+                            handleEditSubTask(subTask.id, newTitle.trim());
+                          }
+                        }}
+                      >
+                        {subTask.title}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0 hover:bg-orange-100"
+                        onClick={(e) => {
+                          const newTitle = prompt("Edit task:", subTask.title);
+                          if (newTitle && newTitle.trim()) {
+                            handleEditSubTask(subTask.id, newTitle.trim());
+                          }
+                        }}
+                      >
+                        <Pencil className="w-3 h-3" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0 hover:bg-red-100 text-red-500"
+                        onClick={(e) => handleDeleteSubTask(subTask.id, e)}
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    </div>
                   </div>
                 ))}
                 {(!selectedCell?.cell.subTasks || selectedCell?.cell.subTasks.length === 0) && (

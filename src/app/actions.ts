@@ -199,6 +199,46 @@ export async function toggleSubTask(sectionId: string, cellId: string, subTaskId
     return data;
 }
 
+export async function deleteSubTask(sectionId: string, cellId: string, subTaskId: string): Promise<AppData> {
+    const data = await loadData();
+    const section = data.mandala.surroundingSections.find(s => s.id === sectionId);
+    if (!section) throw new Error("Section not found");
+
+    const cell = section.surroundingCells.find(c => c.id === cellId);
+    if (!cell || !cell.subTasks) throw new Error("Cell or SubTasks not found");
+
+    const subTaskIndex = cell.subTasks.findIndex(t => t.id === subTaskId);
+    if (subTaskIndex === -1) throw new Error("SubTask not found");
+
+    const deletedSubTask = cell.subTasks[subTaskIndex];
+    cell.subTasks.splice(subTaskIndex, 1);
+
+    // If deleted task was completed, subtract XP
+    if (deletedSubTask.completed) {
+        data.tiger.xp = Math.max(0, data.tiger.xp - 10);
+    }
+
+    await saveData(data);
+    return data;
+}
+
+export async function editSubTask(sectionId: string, cellId: string, subTaskId: string, newTitle: string): Promise<AppData> {
+    const data = await loadData();
+    const section = data.mandala.surroundingSections.find(s => s.id === sectionId);
+    if (!section) throw new Error("Section not found");
+
+    const cell = section.surroundingCells.find(c => c.id === cellId);
+    if (!cell || !cell.subTasks) throw new Error("Cell or SubTasks not found");
+
+    const subTask = cell.subTasks.find(t => t.id === subTaskId);
+    if (!subTask) throw new Error("SubTask not found");
+
+    subTask.title = newTitle;
+
+    await saveData(data);
+    return data;
+}
+
 export async function exportMandalaToMarkdown(data: AppData): Promise<string> {
     const obsidianDir = data.obsidian?.exportPath || '../../Gamified-Mandala-Data';
     const exportDir = path.resolve(process.cwd(), obsidianDir);

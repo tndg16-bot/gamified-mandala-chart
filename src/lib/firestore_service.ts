@@ -269,6 +269,61 @@ export const FirestoreService = {
         return newData;
     },
 
+    // Delete subtask
+    async deleteSubTask(user: User, currentData: AppData, sectionId: string, cellId: string, subTaskId: string): Promise<AppData> {
+        if (!user.uid) throw new Error("User ID missing");
+
+        const newData = JSON.parse(JSON.stringify(currentData)) as AppData;
+        const section = newData.mandala.surroundingSections.find(s => s.id === sectionId);
+        if (!section) return currentData;
+
+        const cell = section.surroundingCells.find(c => c.id === cellId);
+        if (!cell || !cell.subTasks) return currentData;
+
+        // Find and remove the subtask
+        const subTaskIndex = cell.subTasks.findIndex(t => t.id === subTaskId);
+        if (subTaskIndex === -1) return currentData;
+
+        const deletedSubTask = cell.subTasks[subTaskIndex];
+        cell.subTasks.splice(subTaskIndex, 1);
+
+        // If the deleted task was completed, subtract XP
+        if (deletedSubTask.completed) {
+            newData.tiger.xp = Math.max(0, newData.tiger.xp - 10);
+            const todayKey = new Date().toISOString().split('T')[0];
+            if (!newData.xpHistory) newData.xpHistory = [];
+            let historyEntry = newData.xpHistory.find(entry => entry.date === todayKey);
+            if (!historyEntry) {
+                historyEntry = { date: todayKey, xp: 0 };
+                newData.xpHistory.push(historyEntry);
+            }
+            historyEntry.xp = Math.max(0, historyEntry.xp - 10);
+        }
+
+        await this.saveUserData(user, newData);
+        return newData;
+    },
+
+    // Edit subtask title
+    async editSubTask(user: User, currentData: AppData, sectionId: string, cellId: string, subTaskId: string, newTitle: string): Promise<AppData> {
+        if (!user.uid) throw new Error("User ID missing");
+
+        const newData = JSON.parse(JSON.stringify(currentData)) as AppData;
+        const section = newData.mandala.surroundingSections.find(s => s.id === sectionId);
+        if (!section) return currentData;
+
+        const cell = section.surroundingCells.find(c => c.id === cellId);
+        if (!cell || !cell.subTasks) return currentData;
+
+        const subTask = cell.subTasks.find(t => t.id === subTaskId);
+        if (!subTask) return currentData;
+
+        subTask.title = newTitle;
+
+        await this.saveUserData(user, newData);
+        return newData;
+    },
+
     async getAllLessons(): Promise<Lesson[]> {
         const lessonsRef = collection(db, "lessons");
         const snapshot = await getDocs(lessonsRef);
